@@ -120,25 +120,25 @@ Projects like OpenClaw are excellent personal AI assistants — running on your 
 
 ## Components
 
-| Component | Language | Description | Repo | Status |
-|-----------|----------|-------------|------|--------|
-| **linkwork-server** | Java 21 / Spring Boot 3 | Core backend — task scheduling, role management, approvals, skill & tool registry | [GitHub](https://github.com/glowdan/linkwork-server) | Open-sourcing |
-| **linkwork-executor** | Go | Secure executor — in-container command execution, policy engine, SSH isolation | [GitHub](https://github.com/glowdan/linkwork-executor) | Coming soon |
-| **linkwork-agent-sdk** | Python | Agent runtime — LLM engine, skill orchestration, MCP integration | [GitHub](https://github.com/glowdan/linkwork-agent-sdk) | Coming soon |
-| **linkwork-mcp-gateway** | Go | MCP tool gateway — tool discovery, request proxy, auth, usage metering | [GitHub](https://github.com/glowdan/linkwork-mcp-gateway) | Coming soon |
-| **linkwork-web** | Vue 3 + TypeScript | Frontend reference — task dashboard, role config, skill marketplace | [GitHub](https://github.com/glowdan/linkwork-web) | Coming soon |
+| Component | Description | Repo | Status |
+|-----------|-------------|------|--------|
+| **linkwork-server** | Core backend — task scheduling, role management, approvals, skill & tool registry | [GitHub](https://github.com/glowdan/linkwork-server) | Open-sourcing |
+| **linkwork-executor** | Secure executor — in-container command execution, policy engine, SSH isolation | [GitHub](https://github.com/glowdan/linkwork-executor) | Coming soon |
+| **linkwork-agent-sdk** | Agent runtime — LLM engine, skill orchestration, MCP integration | [GitHub](https://github.com/glowdan/linkwork-agent-sdk) | Coming soon |
+| **linkwork-mcp-gateway** | MCP tool gateway — tool discovery, request proxy, auth, usage metering | [GitHub](https://github.com/glowdan/linkwork-mcp-gateway) | Coming soon |
+| **linkwork-web** | Frontend reference — task dashboard, role config, skill marketplace | [GitHub](https://github.com/glowdan/linkwork-web) | Coming soon |
 
 ## Open-source Roadmap
 
 LinkWork follows a **phased open-source** strategy, ensuring each component is independently usable and well-documented:
 
-| Phase | Components | Description |
-|-------|-----------|-------------|
-| Phase 1 | linkwork-server | Java backend core with full scheduling engine and demo launcher |
-| Phase 2 | linkwork-executor + linkwork-agent-sdk | Execution layer — Go secure executor + Python Agent runtime |
-| Phase 3 | linkwork-mcp-gateway + linkwork-web | Access layer — MCP tool gateway + frontend reference implementation |
+| Phase | Components | Description | ETA |
+|-------|-----------|-------------|-----|
+| Phase 1 | linkwork-server | Backend core with full scheduling engine and demo launcher | Late March 2026 |
+| Phase 2 | linkwork-executor + linkwork-agent-sdk | Execution layer — secure executor + Agent runtime | Late March 2026 |
+| Phase 3 | linkwork-mcp-gateway + linkwork-web | Access layer — MCP tool gateway + frontend reference implementation | End of March 2026 |
 
-> Components are being actively prepared for release. Watch this repo for updates.
+> All components are planned to be fully open-sourced before April 1, 2026. Watch this repo for updates.
 
 ## License
 
@@ -146,7 +146,7 @@ LinkWork follows a **phased open-source** strategy, ensuring each component is i
 
 ## Stay Connected
 
-The project is being actively open-sourced. If you're interested in enterprise AI workforce management:
+All components are planned to be fully open-sourced before April 1, 2026. If you're interested in enterprise AI workforce management:
 
 - **Star** this repo to track progress
 - **Watch** for release notifications
