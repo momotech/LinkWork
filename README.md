@@ -64,7 +64,6 @@ Behind the marketplace is a complete **supply chain governance system** — unif
 - **Image Factory** — Auto-build, security scanning; every role image is traceable and reproducible
 - **Skills Factory** — Online editing, version management, team sharing, and usage analytics
 - **MCP Factory** — Tool registration and discovery, health checks, auth, and usage metering
-- **RAG Document Center** — Auto document parsing, semantic search; building searchable long-term knowledge bases for AI workers
 
 ## Key Features
 
