@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leader responsible for enforcement:
-[@glowdan](https://github.com/glowdan) / [hellogroup-oss](https://github.com/hellogroup-oss) via GitHub.
+[@glowdan](https://github.com/glowdan) / [momotech](https://github.com/momotech) via GitHub.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

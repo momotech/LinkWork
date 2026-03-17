@@ -30,11 +30,24 @@ LinkWork/
 │   ├── ISSUE_TEMPLATE/       # Issue 模板 (bug / feature)
 │   ├── pull_request_template.md
 │   └── CODEOWNERS
-├── docs/                     # 项目文档（中文）
-│   ├── quick-start.md        # 快速开始
-│   ├── architecture.md       # 架构设计
-│   ├── deployment.md         # 部署指南
-└── └── extension-guide.md    # 扩展开发指南
+├── docs/                     # 项目文档（中文，_zh-CN 后缀）
+│   ├── README_zh-CN.md       # 文档导航索引
+│   ├── quick-start_zh-CN.md  # 快速开始
+│   ├── concepts/             # 核心概念
+│   │   ├── workstation_zh-CN.md       # 岗位模型
+│   │   ├── skills_zh-CN.md            # Skills 系统
+│   │   ├── mcp-tools_zh-CN.md        # MCP 工具
+│   │   └── harness-engineering_zh-CN.md  # Harness Engineering
+│   ├── architecture/         # 架构设计
+│   │   ├── overview_zh-CN.md          # 系统架构总览
+│   │   ├── components_zh-CN.md        # 核心组件
+│   │   ├── data-flow_zh-CN.md         # 数据流与实时通信
+│   │   └── security_zh-CN.md          # 安全架构
+│   ├── guides/               # 使用指南
+│   │   ├── deployment_zh-CN.md        # 部署指南
+│   │   └── extension_zh-CN.md         # 扩展开发指南
+│   └── examples/             # 实践案例
+└──     └── literature-tracker_zh-CN.md  # 文献追踪员示例
 ```
 
 ---
@@ -63,10 +76,23 @@ LinkWork/
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
-| 快速开始 | `docs/quick-start.md` | 5 分钟 Docker Compose 启动 |
-| 架构设计 | `docs/architecture.md` | 系统架构与数据流 |
-| 部署指南 | `docs/deployment.md` | Docker Compose / K8s 生产部署 |
-| 扩展开发 | `docs/extension-guide.md` | 自定义 Skill / MCP Tool / Role |
+| 文档导航 | `docs/README_zh-CN.md` | 文档总索引 |
+| 快速开始 | `docs/quick-start_zh-CN.md` | 了解系统组成与平台服务启动 |
+| **核心概念** | | |
+| 岗位模型 | `docs/concepts/workstation_zh-CN.md` | Workstation → Instance → Task |
+| Skills 系统 | `docs/concepts/skills_zh-CN.md` | 声明式技能、版本管理 |
+| MCP 工具 | `docs/concepts/mcp-tools_zh-CN.md` | 标准化工具接入与代理 |
+| Harness Engineering | `docs/concepts/harness-engineering_zh-CN.md` | 一岗位一镜像 |
+| **架构设计** | | |
+| 系统架构总览 | `docs/architecture/overview_zh-CN.md` | 组件关系与技术栈 |
+| 核心组件 | `docs/architecture/components_zh-CN.md` | 五大组件职责 |
+| 数据流 | `docs/architecture/data-flow_zh-CN.md` | 事件流与实时通信 |
+| 安全架构 | `docs/architecture/security_zh-CN.md` | 多层安全模型 |
+| **使用指南** | | |
+| 部署指南 | `docs/guides/deployment_zh-CN.md` | K8s 生产部署与基础设施要求 |
+| 扩展开发 | `docs/guides/extension_zh-CN.md` | 自定义 Skill / MCP Tool / Role |
+| **实践案例** | | |
+| 文献追踪员 | `docs/examples/literature-tracker_zh-CN.md` | 完整岗位配置示例 |
 
 ---
 
@@ -75,4 +101,4 @@ LinkWork/
 - 容器逃逸、命令注入、路径穿越 → 立即修复，不可降级
 - 敏感信息（密钥、Token）→ 环境变量注入，禁止硬编码、禁止日志输出
 - 高风险操作 → 必须走审批流，不可绕过
-- 安全漏洞报告 → 仅通过 [GitHub Private Vulnerability Reporting](https://github.com/hellogroup-oss/LinkWork/security/advisories/new)，禁止公开 Issue
+- 安全漏洞报告 → 仅通过 [GitHub Private Vulnerability Reporting](https://github.com/momotech/LinkWork/security/advisories/new)，禁止公开 Issue

@@ -41,5 +41,5 @@ Each component maintains its own version independently.
 - Multi-model support via OpenAI-compatible interface
 - Docker Compose quick-start launcher
 
-[Unreleased]: https://github.com/hellogroup-oss/LinkWork/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/hellogroup-oss/LinkWork/releases/tag/v0.1.0
+[Unreleased]: https://github.com/momotech/LinkWork/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/momotech/LinkWork/releases/tag/v0.1.0

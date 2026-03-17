@@ -175,4 +175,4 @@ Use the [Feature Request](.github/ISSUE_TEMPLATE/feature_request.yml) issue temp
 
 ## Questions?
 
-For general questions and discussions, open a [GitHub Discussion](https://github.com/hellogroup-oss/LinkWork/discussions).
+For general questions and discussions, open a [GitHub Discussion](https://github.com/momotech/LinkWork/discussions).

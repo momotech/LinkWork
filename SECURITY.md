@@ -15,7 +15,7 @@ LinkWork uses [GitHub Private Vulnerability Reporting](https://docs.github.com/e
 
 ### How to Report
 
-1. Go to the [Security Advisories](https://github.com/hellogroup-oss/LinkWork/security/advisories/new) page.
+1. Go to the [Security Advisories](https://github.com/momotech/LinkWork/security/advisories/new) page.
 2. Click **"Report a vulnerability"**.
 3. Fill in the details: description, impact, reproduction steps, and any suggested fix.
 
