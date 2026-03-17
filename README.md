@@ -20,6 +20,12 @@ You can run it like a company: create **roles**, equip each role with **skills**
 
 Not a chatbot. Not a personal assistant. An **enterprise-grade AI team management system**.
 
+LinkWork 是一个 **AI 员工平台**。
+
+你可以像经营一家公司一样管理 AI：设立**岗位**，为每个岗位装配**技能**，授权可用的**工具**，设定**安全策略**，安排**计划任务** — 然后让 AI 员工在各自独立的容器中 7x24 运行，实时追踪进度，高风险操作自动拦截审批。
+
+不是一个聊天机器人，不是一个个人助手，而是一个**企业级的 AI 团队管理系统**。
+
 > Before paying AI a salary, give it a role, a skill set, and a security policy.
 
 ## Core Design Philosophy
