@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🪢 LinkWork
+# 🪢 LinkWork (灵工)
 
 ### Make AI Work Like Your Team
 
