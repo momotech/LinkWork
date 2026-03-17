@@ -65,7 +65,7 @@ LinkWork/
 |------|------|------|
 | 快速开始 | `docs/quick-start.md` | 5 分钟 Docker Compose 启动 |
 | 架构设计 | `docs/architecture.md` | 系统架构与数据流 |
-| 部署指南 | `docs/deployment.md` | Docker Compose / K8s 生产部署 |
+| 部署指南 | `docs/deployment.md` | K8s 生产部署 |
 | 扩展开发 | `docs/extension-guide.md` | 自定义 Skill / MCP Tool / Role |
 
 ---
