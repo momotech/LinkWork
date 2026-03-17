@@ -1,0 +1,19 @@
+# CODEOWNERS
+# Each line maps a path pattern to one or more owners.
+# Owners are automatically requested for review on PRs.
+
+# Global fallback
+* @glowdan
+
+# Component-level owners
+/linkwork-server/   @glowdan
+/linkwork-executor/ @glowdan
+/linkwork-agent-sdk/ @glowdan
+/linkwork-mcp-gateway/ @glowdan
+/linkwork-web/      @glowdan
+
+# Governance documents
+/CONTRIBUTING.md    @glowdan
+/CODE_OF_CONDUCT.md @glowdan
+/SECURITY.md        @glowdan
+/.github/           @glowdan
