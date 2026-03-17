@@ -26,7 +26,7 @@ Not a chatbot. Not a personal assistant. An **enterprise-grade AI team managemen
 
 ### Every AI Worker Is a Containerized Service
 
-An AI worker isn't a process running on the host machine. Each AI worker runs in an independent **Docker / K8s container** with:
+An AI worker isn't a process running on the host machine. Each AI worker runs in an independent **K8s container** with:
 
 - **Isolated execution environment** — Filesystem, network, and processes fully isolated between workers
 - **Dedicated resource quotas** — CPU and memory allocated on demand, preventing any single worker from crashing the cluster
