@@ -8,7 +8,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug!
-        **Do not report security vulnerabilities here.** Use [GitHub Private Vulnerability Reporting](https://github.com/glowdan/LinkWork/security/advisories/new) instead.
+        **Do not report security vulnerabilities here.** Use [GitHub Private Vulnerability Reporting](https://github.com/hellogroup-oss/LinkWork/security/advisories/new) instead.
 
   - type: dropdown
     id: component

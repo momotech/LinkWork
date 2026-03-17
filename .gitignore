@@ -1,0 +1,16 @@
+# Sub-project repositories (managed independently)
+linkwork-server/
+linkwork-executor/
+linkwork-agent-sdk/
+linkwork-mcp-gateway/
+linkwork-web/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

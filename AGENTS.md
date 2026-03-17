@@ -75,4 +75,4 @@ LinkWork/
 - 容器逃逸、命令注入、路径穿越 → 立即修复，不可降级
 - 敏感信息（密钥、Token）→ 环境变量注入，禁止硬编码、禁止日志输出
 - 高风险操作 → 必须走审批流，不可绕过
-- 安全漏洞报告 → 仅通过 [GitHub Private Vulnerability Reporting](https://github.com/glowdan/LinkWork/security/advisories/new)，禁止公开 Issue
+- 安全漏洞报告 → 仅通过 [GitHub Private Vulnerability Reporting](https://github.com/hellogroup-oss/LinkWork/security/advisories/new)，禁止公开 Issue
