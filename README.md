@@ -206,6 +206,22 @@ LinkWork follows a **phased open-source** strategy, ensuring each component is i
 
 > All components are planned to be fully open-sourced before April 1, 2026. Watch this repo for updates.
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Quick Start](./docs/quick-start_zh-CN.md) | Prerequisites, cloning submodules, launching platform services |
+| [Deployment Guide](./docs/guides/deployment_zh-CN.md) | K8s production deployment, Harbor, MySQL, Volcano |
+| [Extension Guide](./docs/guides/extension_zh-CN.md) | Custom roles, Skills, MCP tools, file management, Git projects |
+| [Workstation Model](./docs/concepts/workstation_zh-CN.md) | Role → Instance → Task model |
+| [Skills System](./docs/concepts/skills_zh-CN.md) | Declarative skills, version pinning, build-time injection |
+| [MCP Tools](./docs/concepts/mcp-tools_zh-CN.md) | Standardized external tool access |
+| [Harness Engineering](./docs/concepts/harness-engineering_zh-CN.md) | One role, one image |
+| [Architecture Overview](./docs/architecture/overview_zh-CN.md) | System context, components, tech stack |
+| [Example: Literature Tracker](./docs/examples/literature-tracker_zh-CN.md) | Complete role configuration walkthrough |
+
+> Full documentation index: [docs/README_zh-CN.md](./docs/README_zh-CN.md)
+
 ## License
 
 [Apache License 2.0](./LICENSE)
