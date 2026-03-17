@@ -185,7 +185,7 @@ Projects like OpenClaw are excellent personal AI assistants — running on your 
 | **Runtime Env** | Local single machine | K8s cluster, container isolation |
 | **Capability Mgmt** | Community plugins, self-install | Role → Skill → Tool, three-tier governance |
 | **Security** | Relies on user discretion | Approval workflow + policy engine + audit |
-| **Deployment** | `npm install -g` | Docker Compose / K8s |
+| **Deployment** | `npm install -g` | K8s |
 | **Skills Reuse** | Personal accumulation, hard to share | Skills proven on personal tools migrate directly in, shared across teams, reliably executed |
 
 > Personal assistants solve "my productivity". LinkWork solves "organizational effectiveness". Skills you've refined on personal tools can go straight into LinkWork, becoming standardized capabilities your entire team can use.
