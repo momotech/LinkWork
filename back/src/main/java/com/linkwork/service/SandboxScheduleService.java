@@ -238,11 +238,21 @@ public class SandboxScheduleService {
             return;
         }
 
+        List<String> refsFromMcpConfig = extractMcpRefsFromConfigValue(existing);
+        if (!refsFromMcpConfig.isEmpty()) {
+            applyMcpConfigByRefs(request, refsFromMcpConfig);
+            return;
+        }
+
         List<String> refs = extractMcpRefs(request);
         if (refs.isEmpty()) {
             return;
         }
 
+        applyMcpConfigByRefs(request, refs);
+    }
+
+    private void applyMcpConfigByRefs(ServiceBuildRequest request, List<String> refs) {
         List<Long> ids = mcpServerService.resolveIdsByRefs(refs);
         if (ids.isEmpty()) {
             throw new IllegalArgumentException("No valid MCP server found from refs: " + refs);
@@ -254,6 +264,39 @@ public class SandboxScheduleService {
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Failed to serialize MCP_CONFIG: " + ex.getMessage(), ex);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> extractMcpRefsFromConfigValue(Object mcpConfig) {
+        if (!(mcpConfig instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<String> refs = new ArrayList<>();
+        for (Object item : list) {
+            if (item == null) {
+                continue;
+            }
+            if (item instanceof Map<?, ?> map) {
+                Object rawId = map.get("id");
+                if (rawId == null) {
+                    rawId = map.get("mcpId");
+                }
+                if (rawId != null && StringUtils.hasText(String.valueOf(rawId))) {
+                    refs.add(String.valueOf(rawId).trim());
+                    continue;
+                }
+                Object rawName = map.get("name");
+                if (rawName != null && StringUtils.hasText(String.valueOf(rawName))) {
+                    refs.add(String.valueOf(rawName).trim());
+                }
+                continue;
+            }
+            String raw = String.valueOf(item).trim();
+            if (StringUtils.hasText(raw)) {
+                refs.add(raw);
+            }
+        }
+        return refs;
     }
 
     @SuppressWarnings("unchecked")
@@ -317,7 +360,7 @@ public class SandboxScheduleService {
                 if (!StringUtils.hasText(k) || v == null) {
                     return;
                 }
-                injectedEnvs.putIfAbsent(k, String.valueOf(v));
+                injectedEnvs.putIfAbsent(k, toEnvValue(v));
             });
         }
         injectedEnvs.putIfAbsent("SERVICE_ID", request.getServiceId());
@@ -371,6 +414,23 @@ public class SandboxScheduleService {
         attachManagedRuntimeResources(request, spec, injectedEnvs, mountDefs);
         spec.setMounts(mountDefs);
         return spec;
+    }
+
+    private String toEnvValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str) {
+            return str;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            return String.valueOf(value);
+        }
     }
 
     private int nullSafe(Integer value) {
