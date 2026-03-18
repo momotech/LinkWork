@@ -21,6 +21,9 @@
         <linkwork.server.version>0.1.0-SNAPSHOT</linkwork.server.version>
         <linkwork.server.github.owner>momotech</linkwork.server.github.owner>
         <linkwork.server.github.repo>linkwork-server</linkwork.server.github.repo>
+        <mybatis-plus.version>3.5.7</mybatis-plus.version>
+        <milvus-sdk.version>2.5.4</milvus-sdk.version>
+        <tika.version>2.9.2</tika.version>
     </properties>
 
     <repositories>
@@ -56,13 +59,72 @@
             <artifactId>linkwork-skill-starter</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.linkwork</groupId>
+            <artifactId>linkwork-storage-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>${milvus-sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
+        <sourceDirectory>back/src/main/java</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>back/src/main/resources</directory>
+            </resource>
+        </resources>
+        <testSourceDirectory>back/src/test/java</testSourceDirectory>
+        <testResources>
+            <testResource>
+                <directory>back/src/test/resources</directory>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

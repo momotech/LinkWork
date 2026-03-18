@@ -4,6 +4,46 @@ server:
 spring:
   application:
     name: linkwork
+  datasource:
+    url: ${LINKWORK_DB_URL:jdbc:mysql://localhost:3306/linkwork?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${LINKWORK_DB_USERNAME:root}
+    password: ${LINKWORK_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${LINKWORK_REDIS_HOST:localhost}
+      port: ${LINKWORK_REDIS_PORT:6379}
+      password: ${LINKWORK_REDIS_PASSWORD:}
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+nfs:
+  storage:
+    base-path: ${NFS_STORAGE_BASE_PATH:/mnt/oss/robot-agent-files}
+    download-base-url: /api/v1/files
+    task-output-base-url: /api/v1/task-outputs
+
+memory:
+  enabled: ${MEMORY_ENABLED:true}
+  milvus:
+    uri: ${MILVUS_URI:http://milvus:19530}
+    token: ${MILVUS_TOKEN:}
+  embedding:
+    model: ${MEMORY_EMBEDDING_MODEL:text-embedding-3-small}
+    dimension: ${MEMORY_EMBEDDING_DIMENSION:1536}
+  index:
+    max-chunk-size: 1500
+    overlap-lines: 2
+    queue-key: memory:index:jobs
+  oss-mount-path: ${MEMORY_OSS_MOUNT_PATH:/data/oss}
+
+llm-gateway:
+  url: ${LLM_GATEWAY_URL:http://llm-gateway:8080}
 
 linkwork:
   skill:
