@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for LinkWork
+title: "[Feature] "
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please fill out the form below to help us understand your request.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Related Component
+      multiple: true
+      options:
+        - linkwork-server
+        - linkwork-executor
+        - linkwork-agent-sdk
+        - linkwork-mcp-gateway
+        - linkwork-web
+        - Documentation
+        - Other / Cross-cutting
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve? Why does this matter?
+      placeholder: "I'm trying to... but I can't because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see implemented.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches did you consider? Why did you prefer this one?
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, mockups, links to related issues or prior art.
+    validations:
+      required: false
