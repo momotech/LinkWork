@@ -1,6 +1,7 @@
 <div align="center">
+<img src="./assets/logo.png" alt="LinkWork Logo" width="100">
 
-# 🪢 LinkWork (灵工)
+# LinkWork (灵工)
 
 ### Make AI Work Like Your Team
 
@@ -8,19 +9,24 @@
 
 English | [中文](./README_zh-CN.md)
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/momotech/LinkWork)](https://github.com/momotech/LinkWork/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/momotech/LinkWork)](https://github.com/momotech/LinkWork/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+
 </div>
 
 ---
 
 ## What Is LinkWork
 
-LinkWork is an open-source **AI worker platform**.
+LinkWork is an open-source **enterprise AI agent platform** that orchestrates containerized AI workforces on **Kubernetes**. Define roles, assign declarative **skills**, connect **MCP** (Model Context Protocol) tools, enforce security policies — and let multi-agent teams run autonomously in isolated containers.
 
 You can run it like a company: create **roles**, equip each role with **skills**, authorize available **tools**, set **security policies**, arrange **task schedules** — then let your AI workers run 24/7 in their own isolated containers, track progress in real time, and automatically intercept high-risk operations for human approval.
 
 Not a chatbot. Not a personal assistant. An **enterprise-grade AI team management system**.
 
-LinkWork 是一个 **AI 员工平台**。
+LinkWork 是一个开源的企业级 **AI Agent 平台**，在 **Kubernetes** 上编排容器化的 AI 劳动力。声明式定义岗位、装配技能、接入 **MCP**（Model Context Protocol）工具、执行安全策略 — 让多 Agent 团队在隔离容器中自主运行。
 
 你可以像经营一家公司一样管理 AI：设立**岗位**，为每个岗位装配**技能**，授权可用的**工具**，设定**安全策略**，安排**计划任务** — 然后让 AI 员工在各自独立的容器中 7x24 运行，实时追踪进度，高风险操作自动拦截审批。
 
