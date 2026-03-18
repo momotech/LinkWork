@@ -7,8 +7,10 @@ public class ImageBuildProperties {
 
     private boolean enabled = true;
     private boolean pushEnabled = true;
+    private boolean localLoadEnabled = false;
     private boolean cleanupLocalAfterPush = true;
     private int buildTimeoutSeconds = 1800;
+    private int localLoadTimeoutSeconds = 900;
     private String buildContextDir = "/tmp/linkwork-build";
     private String buildScriptPath;
     private String defaultAgentBaseImage = "ghcr.io/linkwork/agent-base:latest";
@@ -18,6 +20,7 @@ public class ImageBuildProperties {
     private String imagePullSecret = "linkwork-registry-secret";
     private String dockerHost;
     private String entrypointScript = "/opt/agent/start-single.sh";
+    private String kindClusterName = "kind";
     private String sdkRepoUrl;
     private String sdkRepoBranch = "main";
     private String sdkRepoUsername;
@@ -39,6 +42,14 @@ public class ImageBuildProperties {
         this.pushEnabled = pushEnabled;
     }
 
+    public boolean isLocalLoadEnabled() {
+        return localLoadEnabled;
+    }
+
+    public void setLocalLoadEnabled(boolean localLoadEnabled) {
+        this.localLoadEnabled = localLoadEnabled;
+    }
+
     public boolean isCleanupLocalAfterPush() {
         return cleanupLocalAfterPush;
     }
@@ -53,6 +64,14 @@ public class ImageBuildProperties {
 
     public void setBuildTimeoutSeconds(int buildTimeoutSeconds) {
         this.buildTimeoutSeconds = buildTimeoutSeconds;
+    }
+
+    public int getLocalLoadTimeoutSeconds() {
+        return localLoadTimeoutSeconds;
+    }
+
+    public void setLocalLoadTimeoutSeconds(int localLoadTimeoutSeconds) {
+        this.localLoadTimeoutSeconds = localLoadTimeoutSeconds;
     }
 
     public String getBuildContextDir() {
@@ -125,6 +144,14 @@ public class ImageBuildProperties {
 
     public void setEntrypointScript(String entrypointScript) {
         this.entrypointScript = entrypointScript;
+    }
+
+    public String getKindClusterName() {
+        return kindClusterName;
+    }
+
+    public void setKindClusterName(String kindClusterName) {
+        this.kindClusterName = kindClusterName;
     }
 
     public String getSdkRepoUrl() {
