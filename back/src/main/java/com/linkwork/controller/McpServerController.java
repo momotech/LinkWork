@@ -7,7 +7,6 @@ import com.linkwork.model.mcp.McpServerRecord;
 import com.linkwork.service.mcp.McpDiscoveryService;
 import com.linkwork.service.mcp.McpHealthChecker;
 import com.linkwork.service.mcp.McpServerService;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +26,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1")
-@CrossOrigin(origins = "*")
 public class McpServerController {
 
     private final McpServerService mcpServerService;
