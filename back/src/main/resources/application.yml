@@ -32,8 +32,11 @@ linkwork:
   build:
     enabled: ${LINKWORK_BUILD_ENABLED:true}
     push-enabled: ${LINKWORK_BUILD_PUSH_ENABLED:true}
+    local-load-enabled: ${LINKWORK_BUILD_LOCAL_LOAD_ENABLED:false}
     cleanup-local-after-push: ${LINKWORK_BUILD_CLEAN_LOCAL:true}
     build-timeout-seconds: ${LINKWORK_BUILD_TIMEOUT_SECONDS:1800}
+    local-load-timeout-seconds: ${LINKWORK_BUILD_LOCAL_LOAD_TIMEOUT_SECONDS:900}
+    kind-cluster-name: ${LINKWORK_BUILD_KIND_CLUSTER_NAME:kind}
     build-context-dir: ${LINKWORK_BUILD_CONTEXT_DIR:/tmp/linkwork-build}
     build-script-path: ${LINKWORK_BUILD_SCRIPT_PATH:}
     default-agent-base-image: ${LINKWORK_BUILD_DEFAULT_AGENT_BASE_IMAGE:ghcr.io/linkwork/agent-base:latest}

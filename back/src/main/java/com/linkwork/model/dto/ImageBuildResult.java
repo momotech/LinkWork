@@ -7,13 +7,19 @@ public class ImageBuildResult {
     private String errorMessage;
     private long buildDurationMs;
     private boolean pushed;
+    private boolean localLoaded;
 
     public static ImageBuildResult success(String agentImageTag, long buildDurationMs, boolean pushed) {
+        return success(agentImageTag, buildDurationMs, pushed, false);
+    }
+
+    public static ImageBuildResult success(String agentImageTag, long buildDurationMs, boolean pushed, boolean localLoaded) {
         ImageBuildResult result = new ImageBuildResult();
         result.setSuccess(true);
         result.setAgentImageTag(agentImageTag);
         result.setBuildDurationMs(buildDurationMs);
         result.setPushed(pushed);
+        result.setLocalLoaded(localLoaded);
         return result;
     }
 
@@ -62,5 +68,13 @@ public class ImageBuildResult {
 
     public void setPushed(boolean pushed) {
         this.pushed = pushed;
+    }
+
+    public boolean isLocalLoaded() {
+        return localLoaded;
+    }
+
+    public void setLocalLoaded(boolean localLoaded) {
+        this.localLoaded = localLoaded;
     }
 }

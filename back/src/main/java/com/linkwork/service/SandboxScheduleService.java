@@ -88,11 +88,20 @@ public class SandboxScheduleService {
                 return ServiceBuildResult.failed(request.getServiceId(), "IMAGE_BUILD_FAILED", imageBuildResult.getErrorMessage());
             }
             request.setAgentImage(imageBuildResult.getAgentImageTag());
-            if (!StringUtils.hasText(request.getImagePullSecret()) && StringUtils.hasText(imageBuildProperties.getImagePullSecret())) {
-                request.setImagePullSecret(imageBuildProperties.getImagePullSecret());
-            }
-            if (!StringUtils.hasText(request.getImagePullPolicy())) {
-                request.setImagePullPolicy("Always");
+            if (imageBuildResult.isPushed()) {
+                if (!StringUtils.hasText(request.getImagePullSecret()) && StringUtils.hasText(imageBuildProperties.getImagePullSecret())) {
+                    request.setImagePullSecret(imageBuildProperties.getImagePullSecret());
+                }
+                if (!StringUtils.hasText(request.getImagePullPolicy())) {
+                    request.setImagePullPolicy("Always");
+                }
+            } else {
+                if (!StringUtils.hasText(request.getImagePullPolicy())) {
+                    request.setImagePullPolicy("IfNotPresent");
+                }
+                if (!StringUtils.hasText(request.getImagePullSecret())) {
+                    request.setImagePullSecret(null);
+                }
             }
         }
 
@@ -363,18 +372,16 @@ public class SandboxScheduleService {
                 injectedEnvs.putIfAbsent(k, toEnvValue(v));
             });
         }
+        injectedEnvs.putIfAbsent("WORKSTATION_ID", resolveWorkstationId(request));
         injectedEnvs.putIfAbsent("SERVICE_ID", request.getServiceId());
         injectedEnvs.putIfAbsent("USER_ID", request.getUserId());
         injectedEnvs.putIfAbsent("CONFIG_FILE", "/opt/agent/config.json");
         injectedEnvs.putIfAbsent("IDLE_TIMEOUT", "86400");
-        injectedEnvs.putIfAbsent("ZZD_ENABLE_GIT_TOKEN", "true");
         if (request.getPodMode() == PodMode.SIDECAR) {
             injectedEnvs.putIfAbsent("ZZD_RUNNER_HOST", "localhost");
             injectedEnvs.putIfAbsent("ZZD_FORCE_GIT_LOCAL_ROUTE", "true");
         }
-        if (StringUtils.hasText(injectedEnvs.get("API_BASE_URL"))) {
-            injectedEnvs.putIfAbsent("ZZD_API_SERVER_URL", injectedEnvs.get("API_BASE_URL"));
-        }
+        applyRuntimeGitTokenDefaults(injectedEnvs);
         if (request.getRoleId() != null) {
             injectedEnvs.putIfAbsent("ROLE_ID", String.valueOf(request.getRoleId()));
         }
@@ -414,6 +421,58 @@ public class SandboxScheduleService {
         attachManagedRuntimeResources(request, spec, injectedEnvs, mountDefs);
         spec.setMounts(mountDefs);
         return spec;
+    }
+
+    private String resolveWorkstationId(ServiceBuildRequest request) {
+        if (request == null) {
+            return null;
+        }
+        if (StringUtils.hasText(request.getWorkstationId())) {
+            return request.getWorkstationId().trim();
+        }
+        if (StringUtils.hasText(request.getServiceId())) {
+            return request.getServiceId().trim();
+        }
+        return null;
+    }
+
+    private void applyRuntimeGitTokenDefaults(Map<String, String> injectedEnvs) {
+        if (injectedEnvs == null) {
+            return;
+        }
+        String apiServerUrl = firstNonBlank(
+            injectedEnvs.get("ZZD_API_SERVER_URL"),
+            injectedEnvs.get("API_BASE_URL")
+        );
+
+        if (StringUtils.hasText(apiServerUrl)) {
+            injectedEnvs.putIfAbsent("ZZD_API_SERVER_URL", apiServerUrl);
+            injectedEnvs.putIfAbsent("ZZD_ENABLE_GIT_TOKEN", "true");
+            return;
+        }
+
+        String current = injectedEnvs.get("ZZD_ENABLE_GIT_TOKEN");
+        if (!StringUtils.hasText(current)) {
+            injectedEnvs.put("ZZD_ENABLE_GIT_TOKEN", "false");
+            return;
+        }
+
+        if (Boolean.parseBoolean(current)) {
+            injectedEnvs.put("ZZD_ENABLE_GIT_TOKEN", "false");
+            log.warn("ZZD_ENABLE_GIT_TOKEN=true but no API_BASE_URL/ZZD_API_SERVER_URL provided, fallback to false");
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private String toEnvValue(Object value) {

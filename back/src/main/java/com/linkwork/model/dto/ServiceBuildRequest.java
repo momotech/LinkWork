@@ -22,6 +22,7 @@ public class ServiceBuildRequest {
     private String buildId;
     private Long roleId;
     private String roleName;
+    private String workstationId;
     private String description;
 
     @NotNull(message = "deployMode is required")
@@ -99,6 +100,14 @@ public class ServiceBuildRequest {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getWorkstationId() {
+        return workstationId;
+    }
+
+    public void setWorkstationId(String workstationId) {
+        this.workstationId = workstationId;
     }
 
     public DeployMode getDeployMode() {

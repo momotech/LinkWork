@@ -62,9 +62,7 @@ public class ImageBuildService {
                 buildImage(contextPath, imageTag);
 
                 boolean pushed = false;
-                if (properties.isPushEnabled()
-                    && request.getDeployMode() == DeployMode.K8S
-                    && StringUtils.hasText(registry)) {
+                if (shouldPushImage(request, registry)) {
                     dockerLoginIfNeeded(registry);
                     pushImage(imageTag);
                     pushed = true;
@@ -73,10 +71,16 @@ public class ImageBuildService {
                     }
                 }
 
+                boolean localLoaded = false;
+                if (shouldLoadLocalImage(request, pushed)) {
+                    loadImageToKindCluster(imageTag);
+                    localLoaded = true;
+                }
+
                 long duration = System.currentTimeMillis() - start;
-                log.info("Image build finished: serviceId={}, imageTag={}, pushed={}, durationMs={}",
-                    serviceId, imageTag, pushed, duration);
-                return ImageBuildResult.success(imageTag, duration, pushed);
+                log.info("Image build finished: serviceId={}, imageTag={}, pushed={}, localLoaded={}, durationMs={}",
+                    serviceId, imageTag, pushed, localLoaded, duration);
+                return ImageBuildResult.success(imageTag, duration, pushed, localLoaded);
             } finally {
                 cleanupBuildContext(contextPath);
                 cleanupStaleContexts();
@@ -91,7 +95,22 @@ public class ImageBuildService {
         if (StringUtils.hasText(request.getImageRegistry())) {
             return request.getImageRegistry();
         }
+        if (properties.isLocalLoadEnabled() && !properties.isPushEnabled()) {
+            return "";
+        }
         return properties.getRegistry();
+    }
+
+    private boolean shouldPushImage(ServiceBuildRequest request, String registry) {
+        return properties.isPushEnabled()
+            && request.getDeployMode() == DeployMode.K8S
+            && StringUtils.hasText(registry);
+    }
+
+    private boolean shouldLoadLocalImage(ServiceBuildRequest request, boolean pushed) {
+        return !pushed
+            && properties.isLocalLoadEnabled()
+            && request.getDeployMode() == DeployMode.K8S;
     }
 
     private String resolveAgentBaseImage(ServiceBuildRequest request) {
@@ -120,6 +139,7 @@ public class ImageBuildService {
         copyBuildScript(contextDir);
         copyConfigJson(contextDir);
         copyCedarPolicy(contextDir);
+        copyEmbeddedBuildAssets(contextDir);
         return contextDir;
     }
 
@@ -143,6 +163,15 @@ public class ImageBuildService {
             sb.append("\n");
         }
 
+        sb.append("# Embedded build assets (fallback when sdk repo is not configured)\n");
+        sb.append("RUN mkdir -p /opt/momo-agent-build/zzd-binaries /opt/momo-agent-build/sdk-source /opt/momo-agent-build/start-scripts\n");
+        sb.append("COPY zzd-binaries/ /opt/momo-agent-build/zzd-binaries/\n");
+        sb.append("COPY start-scripts/ /opt/momo-agent-build/start-scripts/\n");
+        sb.append("COPY sdk-source.tar.gz /tmp/sdk-source.tar.gz\n");
+        sb.append("RUN set -e \\\n");
+        sb.append("    && if [ -s /tmp/sdk-source.tar.gz ]; then tar -xzf /tmp/sdk-source.tar.gz -C /opt/momo-agent-build/sdk-source --strip-components=1; fi \\\n");
+        sb.append("    && rm -f /tmp/sdk-source.tar.gz\n\n");
+
         if (StringUtils.hasText(properties.getSdkRepoUrl())) {
             sb.append("ARG CACHEBUST=").append(System.currentTimeMillis()).append("\n");
             sb.append("RUN set -e \\\n");
@@ -152,9 +181,11 @@ public class ImageBuildService {
                 .append(buildSdkCloneUrl())
                 .append(" /tmp/_sdk_repo \\\n");
             sb.append("    && mkdir -p /opt/momo-agent-build/zzd-binaries /opt/momo-agent-build/sdk-source /opt/momo-agent-build/start-scripts \\\n");
-            sb.append("    && if [ -d /tmp/_sdk_repo/docker/agent/zzd ]; then cp -a /tmp/_sdk_repo/docker/agent/zzd/. /opt/momo-agent-build/zzd-binaries/; fi \\\n");
-            sb.append("    && if [ -d /tmp/_sdk_repo/momo-agent-sdk ]; then cp -a /tmp/_sdk_repo/momo-agent-sdk/. /opt/momo-agent-build/sdk-source/; fi \\\n");
-            sb.append("    && if [ -d /tmp/_sdk_repo/docker/agent ]; then cp -f /tmp/_sdk_repo/docker/agent/start-*.sh /opt/momo-agent-build/start-scripts/ 2>/dev/null || true; fi \\\n");
+            sb.append("    && for bin in zzd zz gen-key encrypt-key; do cp /tmp/_sdk_repo/docker/agent/zzd/$bin /opt/momo-agent-build/zzd-binaries/; done \\\n");
+            sb.append("    && cp -a /tmp/_sdk_repo/momo-agent-sdk/. /opt/momo-agent-build/sdk-source/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh /opt/momo-agent-build/start-scripts/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh /opt/momo-agent-build/start-scripts/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py /opt/momo-agent-build/start-scripts/ \\\n");
             sb.append("    && rm -rf /tmp/_sdk_repo\n\n");
         }
 
@@ -252,6 +283,47 @@ public class ImageBuildService {
         }
     }
 
+    private void copyEmbeddedBuildAssets(Path contextDir) throws IOException {
+        copyClasspathResource(
+            "scripts/sdk-source.tar.gz",
+            contextDir.resolve("sdk-source.tar.gz"),
+            false,
+            true
+        );
+
+        Path zzdDir = contextDir.resolve("zzd-binaries");
+        Files.createDirectories(zzdDir);
+        copyClasspathResource("scripts/zzd-binaries/zzd", zzdDir.resolve("zzd"), true, true);
+        copyClasspathResource("scripts/zzd-binaries/zz", zzdDir.resolve("zz"), true, true);
+        copyClasspathResource("scripts/zzd-binaries/gen-key", zzdDir.resolve("gen-key"), true, true);
+        copyClasspathResource("scripts/zzd-binaries/encrypt-key", zzdDir.resolve("encrypt-key"), true, true);
+
+        Path startScriptsDir = contextDir.resolve("start-scripts");
+        Files.createDirectories(startScriptsDir);
+        copyClasspathResource("scripts/start-scripts/start-single.sh", startScriptsDir.resolve("start-single.sh"), true, true);
+        copyClasspathResource("scripts/start-scripts/start-dual.sh", startScriptsDir.resolve("start-dual.sh"), true, true);
+        copyClasspathResource("scripts/start-scripts/ai_employee.py", startScriptsDir.resolve("ai_employee.py"), false, true);
+    }
+
+    private void copyClasspathResource(String resourcePath,
+                                       Path target,
+                                       boolean executable,
+                                       boolean required) throws IOException {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            if (required) {
+                throw new IllegalStateException("Missing required classpath resource: " + resourcePath);
+            }
+            return;
+        }
+        try (InputStream inputStream = resource.getInputStream()) {
+            Files.copy(inputStream, target);
+        }
+        if (executable) {
+            setExecutable(target);
+        }
+    }
+
     private void buildImage(Path contextDir, String imageTag) throws IOException, InterruptedException {
         runCommand(
             List.of("docker", "build", "-t", imageTag, "."),
@@ -284,6 +356,56 @@ public class ImageBuildService {
         } catch (Exception ex) {
             log.warn("Remove local image failed: imageTag={}, error={}", imageTag, ex.getMessage());
         }
+    }
+
+    private void loadImageToKindCluster(String imageTag) throws IOException, InterruptedException {
+        List<String> nodeNames = listKindNodeNames();
+        if (nodeNames.isEmpty()) {
+            throw new IllegalStateException("No kind nodes found for cluster: " + properties.getKindClusterName());
+        }
+
+        for (String nodeName : nodeNames) {
+            importImageToKindNode(imageTag, nodeName);
+        }
+    }
+
+    private void importImageToKindNode(String imageTag, String nodeName) throws IOException, InterruptedException {
+        if (!StringUtils.hasText(imageTag) || !StringUtils.hasText(nodeName)) {
+            throw new IllegalArgumentException("imageTag/nodeName must not be blank");
+        }
+        String command = "docker save " + shellQuote(imageTag)
+            + " | docker exec -i " + shellQuote(nodeName)
+            + " ctr -n k8s.io images import -";
+        runCommand(
+            List.of("sh", "-c", command),
+            null,
+            dockerEnv(),
+            properties.getLocalLoadTimeoutSeconds(),
+            "stream import image to kind node"
+        );
+    }
+
+    private String shellQuote(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
+    }
+
+    private List<String> listKindNodeNames() throws IOException, InterruptedException {
+        String clusterName = StringUtils.hasText(properties.getKindClusterName()) ? properties.getKindClusterName() : "kind";
+        String output = runCommand(
+            List.of(
+                "docker", "ps",
+                "--filter", "label=io.x-k8s.kind.cluster=" + clusterName,
+                "--format", "{{.Names}}"
+            ),
+            null,
+            dockerEnv(),
+            60,
+            "docker ps for kind nodes"
+        );
+        return output.lines()
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .toList();
     }
 
     private void dockerLoginIfNeeded(String registry) throws IOException, InterruptedException {
@@ -331,11 +453,11 @@ public class ImageBuildService {
         return env;
     }
 
-    private void runCommand(List<String> command,
-                            Path workDir,
-                            Map<String, String> envVars,
-                            int timeoutSeconds,
-                            String actionName) throws IOException, InterruptedException {
+    private String runCommand(List<String> command,
+                              Path workDir,
+                              Map<String, String> envVars,
+                              int timeoutSeconds,
+                              String actionName) throws IOException, InterruptedException {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         if (workDir != null) {
             processBuilder.directory(workDir.toFile());
@@ -355,6 +477,7 @@ public class ImageBuildService {
         if (process.exitValue() != 0) {
             throw new IllegalStateException(actionName + " failed: " + trimOutput(output));
         }
+        return output;
     }
 
     private String readOutput(InputStream inputStream) throws IOException {
@@ -433,9 +556,24 @@ public class ImageBuildService {
     private String defaultBuildScript() {
         return "#!/usr/bin/env bash\n"
             + "set -euo pipefail\n"
-            + "mkdir -p /workspace /opt/agent\n"
+            + "mkdir -p /workspace /opt/agent /opt/agent/skills\n"
             + "if [[ -n \"${MCP_CONFIG:-}\" ]]; then echo \"${MCP_CONFIG}\" > /opt/agent/mcp.json; fi\n"
             + "if [[ -n \"${SKILLS_CONFIG:-}\" ]]; then echo \"${SKILLS_CONFIG}\" > /opt/agent/skills.json; fi\n"
+            + "if [[ ! -f /opt/agent/start-single.sh ]]; then cat > /opt/agent/start-single.sh <<'SH'\n"
+            + "#!/usr/bin/env bash\n"
+            + "set -euo pipefail\n"
+            + "if command -v zzd >/dev/null 2>&1; then exec zzd; fi\n"
+            + "exec sleep infinity\n"
+            + "SH\n"
+            + "fi\n"
+            + "if [[ ! -f /opt/agent/start-dual.sh ]]; then cat > /opt/agent/start-dual.sh <<'SH'\n"
+            + "#!/usr/bin/env bash\n"
+            + "set -euo pipefail\n"
+            + "if [[ -x /opt/agent/start-single.sh ]]; then exec /opt/agent/start-single.sh; fi\n"
+            + "exec sleep infinity\n"
+            + "SH\n"
+            + "fi\n"
+            + "chmod +x /opt/agent/start-single.sh /opt/agent/start-dual.sh || true\n"
             + "echo \"linkwork build.sh finished\"\n";
     }
 }
