@@ -25,6 +25,9 @@ public class ImageBuildProperties {
     private String sdkRepoBranch = "main";
     private String sdkRepoUsername;
     private String sdkRepoPassword;
+    private String anthropicBaseUrl = "http://172.18.228.32:4000/";
+    private String anthropicAuthToken;
+    private String anthropicApiKey;
 
     public boolean isEnabled() {
         return enabled;
@@ -184,5 +187,29 @@ public class ImageBuildProperties {
 
     public void setSdkRepoPassword(String sdkRepoPassword) {
         this.sdkRepoPassword = sdkRepoPassword;
+    }
+
+    public String getAnthropicBaseUrl() {
+        return anthropicBaseUrl;
+    }
+
+    public void setAnthropicBaseUrl(String anthropicBaseUrl) {
+        this.anthropicBaseUrl = anthropicBaseUrl;
+    }
+
+    public String getAnthropicAuthToken() {
+        return anthropicAuthToken;
+    }
+
+    public void setAnthropicAuthToken(String anthropicAuthToken) {
+        this.anthropicAuthToken = anthropicAuthToken;
+    }
+
+    public String getAnthropicApiKey() {
+        return anthropicApiKey;
+    }
+
+    public void setAnthropicApiKey(String anthropicApiKey) {
+        this.anthropicApiKey = anthropicApiKey;
     }
 }
