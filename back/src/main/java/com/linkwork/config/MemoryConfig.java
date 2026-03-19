@@ -23,7 +23,7 @@ public class MemoryConfig {
 
     @Data
     public static class Embedding {
-        private String model = "text-embedding-3-small";
+        private String model = "openrouter/openai/text-embedding-3-small";
         private int dimension = 1536;
     }
 

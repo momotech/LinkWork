@@ -2,13 +2,14 @@ package com.linkwork.service.memory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linkwork.config.MemoryConfig;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -21,24 +22,42 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmbeddingService {
 
-    private final MemoryConfig memoryConfig;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${llm-gateway.url:http://llm-gateway:8080}")
-    private String llmGatewayUrl;
+    @Value("${litellm.base-url:http://172.18.228.32:4000}")
+    private String liteLlmBaseUrl;
+
+    @Value("${litellm.api-key:}")
+    private String liteLlmApiKey;
+
+    @Value("${litellm.embedding-model:openrouter/openai/text-embedding-3-small}")
+    private String liteLlmEmbeddingModel;
+
+    @PostConstruct
+    public void validateLiteLlmConfig() {
+        if (!StringUtils.hasText(liteLlmApiKey)) {
+            throw new IllegalStateException("LITELLM_API_KEY is required when memory embedding is enabled");
+        }
+    }
 
     public List<List<Float>> embed(List<String> texts) {
         if (texts == null || texts.isEmpty()) return List.of();
 
-        String url = llmGatewayUrl + "/v1/embeddings";
+        String baseUrl = liteLlmBaseUrl;
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        String url = baseUrl + "/v1/embeddings";
         Map<String, Object> body = Map.of(
-                "model", memoryConfig.getEmbedding().getModel(),
+                "model", liteLlmEmbeddingModel,
                 "input", texts
         );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-litellm-api-key", liteLlmApiKey);
+        headers.setBearerAuth(liteLlmApiKey);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         try {

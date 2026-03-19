@@ -100,9 +100,6 @@ linkwork:
     sdk-repo-branch: ${LINKWORK_BUILD_SDK_REPO_BRANCH:main}
     sdk-repo-username: ${LINKWORK_BUILD_SDK_REPO_USERNAME:}
     sdk-repo-password: ${LINKWORK_BUILD_SDK_REPO_PASSWORD:}
-    anthropic-base-url: ${LINKWORK_ANTHROPIC_BASE_URL:http://172.18.228.32:4000/}
-    anthropic-auth-token: ${LINKWORK_ANTHROPIC_AUTH_TOKEN:sk-48sbQpOd2cCeXW1q3H4TBQ}
-    anthropic-api-key: ${LINKWORK_ANTHROPIC_API_KEY:${LINKWORK_ANTHROPIC_AUTH_TOKEN:sk-48sbQpOd2cCeXW1q3H4TBQ}}
   agent:
     mcp:
       enabled: ${LINKWORK_AGENT_MCP_ENABLED:true}
