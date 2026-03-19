@@ -29,8 +29,8 @@ import com.linkwork.model.dto.ServiceStatusResponse;
 import com.linkwork.model.dto.VolumeMountRequest;
 import com.linkwork.model.enums.DeployMode;
 import com.linkwork.model.enums.PodMode;
+import com.linkwork.model.entity.WorkstationEntity;
 import com.linkwork.model.mcp.McpServerRecord;
-import com.linkwork.model.role.RoleRecord;
 import com.linkwork.service.mcp.McpServerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +60,7 @@ public class SandboxScheduleService {
     private final ImageBuildService imageBuildService;
     private final ImageBuildProperties imageBuildProperties;
     private final NfsStorageConfig nfsStorageConfig;
-    private final RoleService roleService;
+    private final WorkstationV1Service workstationService;
     private final McpServerService mcpServerService;
     private final ObjectMapper objectMapper;
     private volatile String cachedDefaultAgentConfig;
@@ -70,14 +70,14 @@ public class SandboxScheduleService {
                                   ImageBuildService imageBuildService,
                                   ImageBuildProperties imageBuildProperties,
                                   NfsStorageConfig nfsStorageConfig,
-                                  RoleService roleService,
+                                  WorkstationV1Service workstationService,
                                   McpServerService mcpServerService,
                                   ObjectMapper objectMapper) {
         this.sandboxOrchestrator = sandboxOrchestrator;
         this.imageBuildService = imageBuildService;
         this.imageBuildProperties = imageBuildProperties;
         this.nfsStorageConfig = nfsStorageConfig;
-        this.roleService = roleService;
+        this.workstationService = workstationService;
         this.mcpServerService = mcpServerService;
         this.objectMapper = objectMapper;
     }
@@ -261,13 +261,13 @@ public class SandboxScheduleService {
             return;
         }
 
-        RoleRecord role = roleService.getById(roleId);
-        if (role == null) {
+        WorkstationEntity ws = workstationService.getById(roleId);
+        if (ws == null) {
             log.debug("Role not found for roleId: {}, skipping MCP config injection", roleId);
             return;
         }
 
-        List<String> refs = extractRoleMcpRefs(role);
+        List<String> refs = extractRoleMcpRefs(ws);
         if (refs.isEmpty()) {
             log.debug("No MCP refs configured for role {}, skipping MCP config injection", roleId);
             return;
@@ -294,11 +294,11 @@ public class SandboxScheduleService {
         }
     }
 
-    private List<String> extractRoleMcpRefs(RoleRecord role) {
-        if (role == null || role.getConfigJson() == null) {
+    private List<String> extractRoleMcpRefs(WorkstationEntity ws) {
+        if (ws == null || ws.getConfigJson() == null || ws.getConfigJson().getMcp() == null) {
             return List.of();
         }
-        return toRefList(role.getConfigJson().get("mcp"));
+        return toRefList(ws.getConfigJson().getMcp());
     }
 
     private List<String> toRefList(Object raw) {
