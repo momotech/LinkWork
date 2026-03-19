@@ -35,6 +35,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TaskV1Service {
 
+    private static final String RUNTIME_SIDECAR = "SIDECAR";
+    private static final String RUNTIME_ALONE = "ALONE";
+
     private final LinkworkTaskMapper taskMapper;
     private final LinkworkFileMapper fileMapper;
     private final StringRedisTemplate redisTemplate;
@@ -73,6 +76,11 @@ public class TaskV1Service {
 
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("modelId", request.getModelId());
+        configMap.put("image", task.getImage());
+        TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(role);
+        configMap.put("runtimeMode", roleRuntime.runtimeMode());
+        configMap.put("zzMode", roleRuntime.zzMode());
+        configMap.put("runnerImage", roleRuntime.runnerImage());
         if (request.getFileIds() != null && !request.getFileIds().isEmpty()) {
             configMap.put("fileIds", request.getFileIds());
         }
@@ -247,6 +255,7 @@ public class TaskV1Service {
         r.setStatus(task.getStatus());
         r.setImage(task.getImage());
         r.setModelId(task.getSelectedModel());
+        r.setSelectedModel(task.getSelectedModel());
         r.setAssemblyId(task.getAssemblyId());
         r.setSource(task.getSource());
         r.setCronJobId(task.getCronJobId());
@@ -262,6 +271,7 @@ public class TaskV1Service {
         r.setCreatedAt(task.getCreatedAt());
         r.setUpdatedAt(task.getUpdatedAt());
 
+        Map<String, Object> configMap = null;
         if (StringUtils.hasText(task.getReportJson())) {
             try {
                 r.setReportJson(objectMapper.readValue(task.getReportJson(), Object.class));
@@ -271,11 +281,22 @@ public class TaskV1Service {
         }
         if (StringUtils.hasText(task.getConfigJson())) {
             try {
-                r.setConfigJson(objectMapper.readValue(task.getConfigJson(), Object.class));
+                Object parsed = objectMapper.readValue(task.getConfigJson(), Object.class);
+                r.setConfigJson(parsed);
+                if (parsed instanceof Map<?, ?> rawMap) {
+                    configMap = new HashMap<>();
+                    for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                        configMap.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                }
             } catch (JsonProcessingException e) {
                 log.warn("Failed to parse config: taskNo={}", task.getTaskNo());
             }
         }
+        TaskRuntimeProfile runtimeProfile = resolveTaskRuntimeProfile(task, configMap);
+        r.setRuntimeMode(runtimeProfile.runtimeMode());
+        r.setZzMode(runtimeProfile.zzMode());
+        r.setRunnerImage(runtimeProfile.runnerImage());
 
         return r;
     }
@@ -337,4 +358,102 @@ public class TaskV1Service {
         }
         return s;
     }
+
+    private TaskRuntimeProfile resolveTaskRuntimeProfile(LinkworkTask task, Map<String, Object> configMap) {
+        String runtimeMode = normalizeRuntimeMode(readText(configMap, "runtimeMode"));
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = normalizeRuntimeMode(readText(configMap, "podMode"));
+        }
+        String runnerImage = firstNonBlank(
+                readText(configMap, "runnerImage"),
+                readText(configMap, "runnerBaseImage"));
+        String zzMode = normalizeZzMode(readText(configMap, "zzMode"));
+
+        TaskRuntimeProfile roleRuntime = null;
+        if (!StringUtils.hasText(runtimeMode) || (RUNTIME_SIDECAR.equals(runtimeMode) && !StringUtils.hasText(runnerImage))) {
+            RoleRecord role = task.getWorkstationId() == null ? null : roleService.getById(task.getWorkstationId());
+            if (role != null) {
+                roleRuntime = resolveRoleRuntimeProfile(role);
+            }
+        }
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = roleRuntime != null ? roleRuntime.runtimeMode() : RUNTIME_ALONE;
+        }
+        if (RUNTIME_SIDECAR.equals(runtimeMode) && !StringUtils.hasText(runnerImage)) {
+            runnerImage = roleRuntime != null ? roleRuntime.runnerImage() : null;
+            if (!StringUtils.hasText(runnerImage)) {
+                runnerImage = task.getImage();
+            }
+        }
+        if (!RUNTIME_SIDECAR.equals(runtimeMode)) {
+            runnerImage = null;
+        }
+        String expectedZzMode = RUNTIME_SIDECAR.equals(runtimeMode) ? "ssh" : "local";
+        if (!expectedZzMode.equalsIgnoreCase(zzMode)) {
+            zzMode = expectedZzMode;
+        }
+        return new TaskRuntimeProfile(runtimeMode, zzMode, runnerImage);
+    }
+
+    private TaskRuntimeProfile resolveRoleRuntimeProfile(RoleRecord role) {
+        Map<String, Object> config = role.getConfigJson();
+        String runtimeMode = normalizeRuntimeMode(readText(config, "runtimeMode"));
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = RUNTIME_ALONE;
+        }
+        String runnerImage = readText(config, "runnerImage");
+        if (!RUNTIME_SIDECAR.equals(runtimeMode)) {
+            runnerImage = null;
+        }
+        String zzMode = RUNTIME_SIDECAR.equals(runtimeMode) ? "ssh" : "local";
+        return new TaskRuntimeProfile(runtimeMode, zzMode, runnerImage);
+    }
+
+    private String readText(Map<String, Object> map, String key) {
+        if (map == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return StringUtils.hasText(text) ? text : null;
+    }
+
+    private String normalizeRuntimeMode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        if (RUNTIME_SIDECAR.equals(value) || RUNTIME_ALONE.equals(value)) {
+            return value;
+        }
+        return null;
+    }
+
+    private String normalizeZzMode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if ("ssh".equals(value) || "local".equals(value)) {
+            return value;
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private record TaskRuntimeProfile(String runtimeMode, String zzMode, String runnerImage) {}
 }
