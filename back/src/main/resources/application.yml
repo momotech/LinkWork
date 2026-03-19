@@ -52,14 +52,14 @@ linkwork:
     sdk-repo-password: ${LINKWORK_BUILD_SDK_REPO_PASSWORD:}
   agent:
     mcp:
-      enabled: ${LINKWORK_MCP_ENABLED:true}
-      mode: ${LINKWORK_MCP_MODE:gateway}
+      enabled: ${LINKWORK_AGENT_MCP_ENABLED:true}
+      mode: ${LINKWORK_AGENT_MCP_MODE:gateway}
       gateway:
-        proxy-base-url: ${MCP_PROXY_BASE_URL:http://mcp-proxy-service:8080}
-        agent-base-url: ${MCP_GATEWAY_AGENT_BASE_URL:http://host.docker.internal:8080}
+        proxy-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_PROXY_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
+        agent-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_AGENT_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
       client:
-        connect-timeout-ms: ${LINKWORK_MCP_CONNECT_TIMEOUT_MS:3000}
-        read-timeout-ms: ${LINKWORK_MCP_READ_TIMEOUT_MS:10000}
+        connect-timeout-ms: ${LINKWORK_AGENT_MCP_CONNECT_TIMEOUT_MS:3000}
+        read-timeout-ms: ${LINKWORK_AGENT_MCP_READ_TIMEOUT_MS:10000}
     sandbox:
       provider: ${LINKWORK_SANDBOX_PROVIDER:k8s-volcano}
       k8s:
