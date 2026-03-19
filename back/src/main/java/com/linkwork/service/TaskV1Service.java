@@ -9,13 +9,16 @@ import com.linkwork.common.exception.ForbiddenOperationException;
 import com.linkwork.config.DispatchConfig;
 import com.linkwork.mapper.LinkworkFileMapper;
 import com.linkwork.mapper.LinkworkTaskMapper;
+import com.linkwork.mapper.TaskGitAuthMapper;
 import com.linkwork.model.dto.TaskCompleteRequest;
 import com.linkwork.model.dto.TaskCreateRequest;
+import com.linkwork.model.dto.TaskGitTokenResponse;
 import com.linkwork.model.dto.TaskResponse;
 import com.linkwork.model.entity.LinkworkFile;
 import com.linkwork.model.entity.LinkworkTask;
+import com.linkwork.model.entity.LinkworkTaskGitAuth;
+import com.linkwork.model.entity.WorkstationEntity;
 import com.linkwork.model.enums.TaskStatus;
-import com.linkwork.model.role.RoleRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -42,9 +45,10 @@ public class TaskV1Service {
 
     private final LinkworkTaskMapper taskMapper;
     private final LinkworkFileMapper fileMapper;
+    private final TaskGitAuthMapper taskGitAuthMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final RoleService roleService;
+    private final WorkstationV1Service workstationService;
     private final SnowflakeIdGenerator idGenerator;
     private final DispatchConfig dispatchConfig;
     private final CronJobV1Service cronJobService;
@@ -55,18 +59,18 @@ public class TaskV1Service {
                                     String creatorIp, String source, Long cronJobId) {
         String taskNo = idGenerator.nextTaskNo();
 
-        RoleRecord role = roleService.getById(request.getRoleId());
-        if (role == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
+        WorkstationEntity ws = workstationService.getById(request.getRoleId());
+        if (ws == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
 
         LinkworkTask task = new LinkworkTask();
         task.setTaskNo(taskNo);
         task.setWorkstationId(request.getRoleId());
-        task.setWorkstationName(role.getName());
+        task.setWorkstationName(ws.getName());
         task.setPrompt(request.getPrompt());
         task.setStatus(TaskStatus.PENDING);
         task.setSource(normalizeSource(source));
         task.setCronJobId("CRON".equals(task.getSource()) ? cronJobId : null);
-        task.setImage(role.getImage() != null ? role.getImage() : "ubuntu-22.04-python3.10");
+        task.setImage(ws.getImage() != null ? ws.getImage() : "ubuntu-22.04-python3.10");
         task.setSelectedModel(request.getModelId());
         task.setAssemblyId(request.getAssemblyId());
         task.setCreatorId(creatorId);
@@ -79,27 +83,28 @@ public class TaskV1Service {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("modelId", request.getModelId());
         configMap.put("image", task.getImage());
-        if (StringUtils.hasText(role.getPrompt())) {
-            String rolePrompt = role.getPrompt().trim();
+        if (StringUtils.hasText(ws.getPrompt())) {
+            String rolePrompt = ws.getPrompt().trim();
             configMap.put("rolePrompt", rolePrompt);
             configMap.put("systemPromptAppend", rolePrompt);
             Map<String, String> promptLayers = new LinkedHashMap<>();
             promptLayers.put("rolePrompt", rolePrompt);
             configMap.put("promptLayers", promptLayers);
         }
-        TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(role);
+        TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(ws);
         configMap.put("runtimeMode", roleRuntime.runtimeMode());
         configMap.put("zzMode", roleRuntime.zzMode());
         configMap.put("runnerImage", roleRuntime.runnerImage());
         if (request.getFileIds() != null && !request.getFileIds().isEmpty()) {
             configMap.put("fileIds", request.getFileIds());
         }
-        if (role.getConfigJson() != null && !role.getConfigJson().isEmpty()) {
-            configMap.put("mcp", role.getConfigJson().get("mcp"));
-            configMap.put("skills", role.getConfigJson().get("skills"));
-            configMap.put("knowledge", role.getConfigJson().get("knowledge"));
-            configMap.put("gitRepos", role.getConfigJson().get("gitRepos"));
-            configMap.put("env", role.getConfigJson().get("env"));
+        WorkstationEntity.WorkstationConfig wsc = ws.getConfigJson();
+        if (wsc != null) {
+            configMap.put("mcp", wsc.getMcp());
+            configMap.put("skills", wsc.getSkills());
+            configMap.put("knowledge", wsc.getKnowledge());
+            configMap.put("gitRepos", wsc.getGitRepos());
+            configMap.put("env", wsc.getEnv());
         }
         if (request.getConfigJson() != null) {
             configMap.put("custom", request.getConfigJson());
@@ -124,7 +129,7 @@ public class TaskV1Service {
         });
 
         log.info("Task created: taskNo={}, roleId={}, roleName={}, modelId={}",
-                taskNo, role.getId(), role.getName(), request.getModelId());
+                taskNo, ws.getId(), ws.getName(), request.getModelId());
         return task;
     }
 
@@ -331,6 +336,27 @@ public class TaskV1Service {
         return r;
     }
 
+    public TaskResponse toShareResponse(LinkworkTask task) {
+        TaskResponse response = toResponse(task);
+        response.setConfigJson(null);
+        return response;
+    }
+
+    public TaskGitTokenResponse getGitToken(String taskNo) {
+        LinkworkTask task = getTaskByNo(taskNo);
+        LambdaQueryWrapper<LinkworkTaskGitAuth> w = new LambdaQueryWrapper<>();
+        w.eq(LinkworkTaskGitAuth::getTaskId, taskNo);
+        LinkworkTaskGitAuth binding = taskGitAuthMapper.selectOne(w);
+        if (binding == null) {
+            throw new IllegalArgumentException("No git auth binding for task: " + taskNo);
+        }
+        TaskGitTokenResponse response = new TaskGitTokenResponse();
+        response.setProvider(binding.getProvider());
+        response.setToken(null);
+        response.setUsername(task.getCreatorName());
+        return response;
+    }
+
     public List<TaskResponse> toResponseList(List<LinkworkTask> tasks) {
         return tasks.stream().map(this::toResponse).collect(Collectors.toList());
     }
@@ -423,9 +449,9 @@ public class TaskV1Service {
 
         TaskRuntimeProfile roleRuntime = null;
         if (!StringUtils.hasText(runtimeMode) || (RUNTIME_SIDECAR.equals(runtimeMode) && !StringUtils.hasText(runnerImage))) {
-            RoleRecord role = task.getWorkstationId() == null ? null : roleService.getById(task.getWorkstationId());
-            if (role != null) {
-                roleRuntime = resolveRoleRuntimeProfile(role);
+            WorkstationEntity ws = task.getWorkstationId() == null ? null : workstationService.getById(task.getWorkstationId());
+            if (ws != null) {
+                roleRuntime = resolveRoleRuntimeProfile(ws);
             }
         }
         if (!StringUtils.hasText(runtimeMode)) {
@@ -447,13 +473,13 @@ public class TaskV1Service {
         return new TaskRuntimeProfile(runtimeMode, zzMode, runnerImage);
     }
 
-    private TaskRuntimeProfile resolveRoleRuntimeProfile(RoleRecord role) {
-        Map<String, Object> config = role.getConfigJson();
-        String runtimeMode = normalizeRuntimeMode(readText(config, "runtimeMode"));
+    private TaskRuntimeProfile resolveRoleRuntimeProfile(WorkstationEntity ws) {
+        WorkstationEntity.WorkstationConfig config = ws.getConfigJson();
+        String runtimeMode = normalizeRuntimeMode(config != null ? config.getRuntimeMode() : null);
         if (!StringUtils.hasText(runtimeMode)) {
             runtimeMode = RUNTIME_ALONE;
         }
-        String runnerImage = readText(config, "runnerImage");
+        String runnerImage = config != null ? config.getRunnerImage() : null;
         if (!RUNTIME_SIDECAR.equals(runtimeMode)) {
             runnerImage = null;
         }
@@ -546,9 +572,9 @@ public class TaskV1Service {
         }
 
         if (task.getWorkstationId() != null) {
-            RoleRecord role = roleService.getById(task.getWorkstationId());
-            if (role != null && StringUtils.hasText(role.getPrompt())) {
-                return role.getPrompt().trim();
+            WorkstationEntity ws = workstationService.getById(task.getWorkstationId());
+            if (ws != null && StringUtils.hasText(ws.getPrompt())) {
+                return ws.getPrompt().trim();
             }
         }
         return "You are a LinkWork execution agent.";

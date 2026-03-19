@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `linkwork_build_record` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `build_no` VARCHAR(128) NOT NULL COMMENT 'Build number',
+  `role_id` BIGINT NULL COMMENT 'Workstation/role ID',
+  `role_name` VARCHAR(255) NULL,
+  `status` VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  `image_tag` VARCHAR(512) NULL,
+  `duration_ms` BIGINT NULL,
+  `error_message` TEXT NULL,
+  `log_url` VARCHAR(1024) NULL,
+  `config_snapshot` JSON NULL,
+  `creator_id` VARCHAR(128) NULL,
+  `creator_name` VARCHAR(255) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_build_no` (`build_no`),
+  KEY `idx_role_id` (`role_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

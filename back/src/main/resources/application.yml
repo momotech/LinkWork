@@ -42,7 +42,7 @@ memory:
     uri: ${MILVUS_URI:http://milvus:19530}
     token: ${MILVUS_TOKEN:}
   embedding:
-    model: ${MEMORY_EMBEDDING_MODEL:text-embedding-3-small}
+    model: ${LITELLM_EMBED_MODEL:openrouter/openai/text-embedding-3-small}
     dimension: ${MEMORY_EMBEDDING_DIMENSION:1536}
   index:
     max-chunk-size: 1500
@@ -50,10 +50,17 @@ memory:
     queue-key: memory:index:jobs
   oss-mount-path: ${MEMORY_OSS_MOUNT_PATH:/data/oss}
 
-llm-gateway:
-  url: ${LLM_GATEWAY_URL:http://llm-gateway:8080}
+litellm:
+  base-url: ${LITELLM_BASE_URL:http://172.18.228.32:4000}
+  api-key: ${LITELLM_API_KEY:}
+  chat-model: ${LITELLM_CHAT_MODEL:}
+  embedding-model: ${LITELLM_EMBED_MODEL:openrouter/openai/text-embedding-3-small}
 
 linkwork:
+  auth:
+    password: ${LINKWORK_AUTH_PASSWORD:}
+    jwt-secret: ${LINKWORK_JWT_SECRET:linkwork-platform-jwt-secret-key-2026-must-be-at-least-256-bits}
+    jwt-expiration: ${LINKWORK_JWT_EXPIRATION:86400000}
   api:
     cors:
       allowed-origins: ${LINKWORK_ALLOWED_ORIGINS:*}

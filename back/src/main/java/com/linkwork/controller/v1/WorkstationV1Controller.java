@@ -12,7 +12,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/workstations")
+@RequestMapping("/api/v1/roles")
 @RequiredArgsConstructor
 public class WorkstationV1Controller {
 

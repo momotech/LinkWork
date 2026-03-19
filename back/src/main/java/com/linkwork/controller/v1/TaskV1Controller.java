@@ -2,11 +2,10 @@ package com.linkwork.controller.v1;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkwork.context.UserContext;
-import com.linkwork.model.dto.TaskCompleteRequest;
-import com.linkwork.model.dto.TaskCreateRequest;
-import com.linkwork.model.dto.TaskResponse;
+import com.linkwork.model.dto.*;
 import com.linkwork.model.entity.LinkworkTask;
 import com.linkwork.model.enums.TaskStatus;
+import com.linkwork.service.TaskShareLinkService;
 import com.linkwork.service.TaskV1Service;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -25,6 +24,7 @@ import java.util.Map;
 public class TaskV1Controller {
 
     private final TaskV1Service taskService;
+    private final TaskShareLinkService shareService;
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> createTask(
@@ -75,12 +75,36 @@ public class TaskV1Controller {
         return ResponseEntity.ok(Map.of("code", 0, "data", taskService.toResponse(task)));
     }
 
-    @PostMapping("/{taskNo}/abort")
-    public ResponseEntity<Map<String, Object>> abortTask(@PathVariable String taskNo) {
+    @PostMapping("/{taskNo}/terminate")
+    public ResponseEntity<Map<String, Object>> terminateTask(@PathVariable String taskNo) {
         String userId = UserContext.getCurrentUserId();
         String username = UserContext.getCurrentUserName();
         LinkworkTask task = taskService.abortTask(taskNo, userId, username);
-        return ResponseEntity.ok(Map.of("code", 0, "data", taskService.toResponse(task)));
+        Map<String, Object> result = new HashMap<>();
+        result.put("taskId", task.getTaskNo());
+        result.put("status", "terminate_requested");
+        return ResponseEntity.ok(Map.of("code", 0, "data", result));
+    }
+
+    @PostMapping("/{taskNo}/abort")
+    public ResponseEntity<Map<String, Object>> abortTask(@PathVariable String taskNo) {
+        return terminateTask(taskNo);
+    }
+
+    @PostMapping("/{taskNo}/share-link")
+    public ResponseEntity<Map<String, Object>> createShareLink(
+            @PathVariable String taskNo,
+            @RequestBody(required = false) TaskShareCreateRequest request) {
+        String userId = UserContext.getCurrentUserId();
+        Long expireHours = request != null ? request.getExpireHours() : null;
+        TaskShareLinkResponse response = shareService.createShareLink(taskNo, userId, expireHours);
+        return ResponseEntity.ok(Map.of("code", 0, "data", response));
+    }
+
+    @GetMapping("/{taskNo}/git-token")
+    public ResponseEntity<Map<String, Object>> getGitToken(@PathVariable String taskNo) {
+        TaskGitTokenResponse response = taskService.getGitToken(taskNo);
+        return ResponseEntity.ok(Map.of("code", 0, "data", response));
     }
 
     @PutMapping("/{taskNo}/status")
@@ -94,25 +118,17 @@ public class TaskV1Controller {
 
     private String resolveUserId(HttpServletRequest request) {
         String userId = UserContext.getCurrentUserId();
-        if (StringUtils.hasText(userId)) {
-            return userId;
-        }
+        if (StringUtils.hasText(userId)) return userId;
         String header = request.getHeader("X-User-Id");
-        if (StringUtils.hasText(header)) {
-            return header;
-        }
+        if (StringUtils.hasText(header)) return header;
         return "anonymous";
     }
 
     private String resolveUserName(HttpServletRequest request) {
         String userName = UserContext.getCurrentUserName();
-        if (StringUtils.hasText(userName)) {
-            return userName;
-        }
+        if (StringUtils.hasText(userName)) return userName;
         String header = request.getHeader("X-User-Name");
-        if (StringUtils.hasText(header)) {
-            return header;
-        }
+        if (StringUtils.hasText(header)) return header;
         return "anonymous";
     }
 }
