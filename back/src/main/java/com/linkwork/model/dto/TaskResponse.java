@@ -12,12 +12,12 @@ public class TaskResponse {
 
     private Long id;
     private String taskNo;
-    private Long workstationId;
-    private String workstationName;
+    private Long roleId;
+    private String roleName;
     private String prompt;
     private TaskStatus status;
     private String image;
-    private String selectedModel;
+    private String modelId;
     private Long assemblyId;
     private Object configJson;
     private String source;

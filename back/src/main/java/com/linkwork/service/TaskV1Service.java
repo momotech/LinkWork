@@ -50,19 +50,19 @@ public class TaskV1Service {
                                     String creatorIp, String source, Long cronJobId) {
         String taskNo = idGenerator.nextTaskNo();
 
-        WorkstationEntity ws = workstationService.getById(request.getWorkstationId());
-        if (ws == null) throw new IllegalArgumentException("Workstation not found: " + request.getWorkstationId());
+        WorkstationEntity ws = workstationService.getById(request.getRoleId());
+        if (ws == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
 
         LinkworkTask task = new LinkworkTask();
         task.setTaskNo(taskNo);
-        task.setWorkstationId(request.getWorkstationId());
+        task.setWorkstationId(request.getRoleId());
         task.setWorkstationName(ws.getName());
         task.setPrompt(request.getPrompt());
         task.setStatus(TaskStatus.PENDING);
         task.setSource(normalizeSource(source));
         task.setCronJobId("CRON".equals(task.getSource()) ? cronJobId : null);
         task.setImage(ws.getImage() != null ? ws.getImage() : "ubuntu-22.04-python3.10");
-        task.setSelectedModel(request.getSelectedModel());
+        task.setSelectedModel(request.getModelId());
         task.setAssemblyId(request.getAssemblyId());
         task.setCreatorId(creatorId);
         task.setCreatorName(creatorName);
@@ -72,7 +72,7 @@ public class TaskV1Service {
         task.setIsDeleted(0);
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("selectedModel", request.getSelectedModel());
+        configMap.put("modelId", request.getModelId());
         if (request.getFileIds() != null && !request.getFileIds().isEmpty()) {
             configMap.put("fileIds", request.getFileIds());
         }
@@ -105,8 +105,8 @@ public class TaskV1Service {
             }
         });
 
-        log.info("Task created: taskNo={}, wsId={}, wsName={}, model={}",
-                taskNo, ws.getId(), ws.getName(), request.getSelectedModel());
+        log.info("Task created: taskNo={}, roleId={}, roleName={}, modelId={}",
+                taskNo, ws.getId(), ws.getName(), request.getModelId());
         return task;
     }
 
@@ -129,12 +129,12 @@ public class TaskV1Service {
         return task;
     }
 
-    public Page<LinkworkTask> listTasks(Long wsId, String status, Integer page, Integer pageSize, String creatorId) {
+    public Page<LinkworkTask> listTasks(Long roleId, String status, Integer page, Integer pageSize, String creatorId) {
         LambdaQueryWrapper<LinkworkTask> w = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(creatorId) && !adminAccessService.isAdmin(creatorId)) {
             w.eq(LinkworkTask::getCreatorId, creatorId);
         }
-        if (wsId != null) w.eq(LinkworkTask::getWorkstationId, wsId);
+        if (roleId != null) w.eq(LinkworkTask::getWorkstationId, roleId);
         if (StringUtils.hasText(status)) w.eq(LinkworkTask::getStatus, TaskStatus.valueOf(status.toUpperCase()));
         w.orderByDesc(LinkworkTask::getCreatedAt);
         return taskMapper.selectPage(new Page<>(page, pageSize), w);
@@ -241,12 +241,12 @@ public class TaskV1Service {
         TaskResponse r = new TaskResponse();
         r.setId(task.getId());
         r.setTaskNo(task.getTaskNo());
-        r.setWorkstationId(task.getWorkstationId());
-        r.setWorkstationName(task.getWorkstationName());
+        r.setRoleId(task.getWorkstationId());
+        r.setRoleName(task.getWorkstationName());
         r.setPrompt(task.getPrompt());
         r.setStatus(task.getStatus());
         r.setImage(task.getImage());
-        r.setSelectedModel(task.getSelectedModel());
+        r.setModelId(task.getSelectedModel());
         r.setAssemblyId(task.getAssemblyId());
         r.setSource(task.getSource());
         r.setCronJobId(task.getCronJobId());

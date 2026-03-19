@@ -10,12 +10,13 @@ import java.util.List;
 public class TaskCreateRequest {
 
     @NotNull
-    private Long workstationId;
+    private Long roleId;
 
     @NotBlank
     private String prompt;
 
-    private String selectedModel;
+    @NotBlank
+    private String modelId;
 
     private String source;
 

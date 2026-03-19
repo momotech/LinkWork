@@ -88,8 +88,8 @@ public class CronJobExecutor {
 
     private TaskCreateRequest buildRequest(LinkworkCronJob job) {
         TaskCreateRequest req = new TaskCreateRequest();
-        req.setWorkstationId(job.getWorkstationId());
-        req.setSelectedModel(job.getModelId());
+        req.setRoleId(job.getWorkstationId());
+        req.setModelId(job.getModelId());
         req.setPrompt(job.getTaskContent());
         return req;
     }
