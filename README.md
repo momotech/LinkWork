@@ -32,9 +32,11 @@ In practice, LinkWork is designed for teams that want to:
 - review, approve, and audit risky actions before they reach production
 - ship outputs as deliverables, not just conversations
 
-Under the hood, LinkWork orchestrates containerized AI workers on **Kubernetes**. Roles, declarative **skills**, **MCP** tools, security policies, and scheduling work together so AI can operate like part of a real team — but with the control surface enterprises require.
+Under the hood, LinkWork uses containerized infrastructure to run and govern AI workers in production. Roles, declarative **skills**, **MCP** tools, security policies, and scheduling work together so AI can operate like part of a real team — while still meeting enterprise requirements for control, isolation, and scale.
 
 Not a chatbot. Not a personal assistant. An **enterprise-grade system for running AI workers safely at scale**.
+
+For production environments, LinkWork is designed around containerized infrastructure and Kubernetes-style operations. That is an implementation choice for scale and governance — not the core value proposition users need to understand first.
 
 > Before paying AI a salary, give it a role, a skill set, and a security policy.
 
@@ -47,7 +49,7 @@ What makes it different:
 - **From one assistant to many workers** — run multiple AI workers with clear responsibilities instead of overloading one general-purpose agent
 - **From chat to execution** — connect AI to tools, workflows, repositories, and scheduled jobs so it can produce outcomes, not just responses
 - **From prompts to governance** — define roles, permissions, approval rules, and audit trails before AI touches real systems
-- **From demos to production** — use container isolation, K8s scheduling, and delivery-oriented task flows to support real enterprise workloads
+- **From demos to production** — use container isolation, governed scheduling, and delivery-oriented task flows to support real enterprise workloads
 
 ## Typical Use Cases
 
@@ -104,7 +106,7 @@ Behind the marketplace is a complete **supply chain governance system** — unif
 
 ## Key Features
 
-- **Containerized Service Orchestration** — Each AI worker runs in its own container, K8s-native scheduling with elastic scaling and self-healing
+- **Containerized Service Orchestration** — Each AI worker runs in its own container, with production-grade scheduling, elastic scaling, and self-healing
 - **AI Role Management** — Define job responsibilities and capability boundaries; swap workers without changing roles
 - **Skills Marketplace** — Declarative Skills, version-pinned and embedded at build time
 - **MCP Tool Bus** — Compatible with [MCP protocol](https://modelcontextprotocol.io/) standard, unified proxy, auth, and usage metering
@@ -213,10 +215,10 @@ Projects like OpenClaw are excellent personal AI assistants — running on your 
 |---|--------------------------------------|----------|
 | **Positioning** | Personal productivity tool | Enterprise workforce platform |
 | **Scale** | Single user, single Agent | Multi-team, multiple AI workers in parallel |
-| **Runtime Env** | Local single machine | K8s cluster, container isolation |
+| **Runtime Env** | Local single machine | Containerized, multi-worker runtime |
 | **Capability Mgmt** | Community plugins, self-install | Role → Skill → Tool, three-tier governance |
 | **Security** | Relies on user discretion | Approval workflow + policy engine + audit |
-| **Deployment** | `npm install -g` | K8s |
+| **Production Deployment** | Lightweight local install | Kubernetes-recommended |
 | **Skills Reuse** | Personal accumulation, hard to share | Skills proven on personal tools migrate directly in, shared across teams, reliably executed |
 
 > Personal assistants solve "my productivity". LinkWork solves "organizational effectiveness". Skills you've refined on personal tools can go straight into LinkWork, becoming standardized capabilities your entire team can use.
