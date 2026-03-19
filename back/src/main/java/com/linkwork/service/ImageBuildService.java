@@ -280,7 +280,13 @@ public class ImageBuildService {
             return "{}";
         }
         String anthropicBaseUrl = properties.getAnthropicBaseUrl();
-        if (!StringUtils.hasText(anthropicBaseUrl)) {
+        String anthropicAuthToken = properties.getAnthropicAuthToken();
+        String anthropicApiKey = StringUtils.hasText(properties.getAnthropicApiKey())
+            ? properties.getAnthropicApiKey()
+            : anthropicAuthToken;
+        if (!StringUtils.hasText(anthropicBaseUrl)
+            && !StringUtils.hasText(anthropicAuthToken)
+            && !StringUtils.hasText(anthropicApiKey)) {
             return rawConfig;
         }
         try {
@@ -290,7 +296,15 @@ public class ImageBuildService {
             }
             ObjectNode claudeSettings = ensureObjectNode(rootObj, "claude_settings");
             ObjectNode envNode = ensureObjectNode(claudeSettings, "env");
-            envNode.put("ANTHROPIC_BASE_URL", anthropicBaseUrl.trim());
+            if (StringUtils.hasText(anthropicBaseUrl)) {
+                envNode.put("ANTHROPIC_BASE_URL", anthropicBaseUrl.trim());
+            }
+            if (StringUtils.hasText(anthropicAuthToken)) {
+                envNode.put("ANTHROPIC_AUTH_TOKEN", anthropicAuthToken.trim());
+            }
+            if (StringUtils.hasText(anthropicApiKey)) {
+                envNode.put("ANTHROPIC_API_KEY", anthropicApiKey.trim());
+            }
             return objectMapper.writeValueAsString(rootObj);
         } catch (Exception ex) {
             log.warn("Failed to apply anthropic base url in config.json, fallback to raw config: {}", ex.getMessage());
