@@ -3,7 +3,6 @@ package com.linkwork.controller;
 import com.linkwork.common.api.ApiResponse;
 import com.linkwork.model.mcp.McpUserConfigRecord;
 import com.linkwork.service.mcp.McpUserConfigService;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/mcp-user-configs")
-@CrossOrigin(origins = "*")
 public class McpUserConfigController {
 
     private final McpUserConfigService mcpUserConfigService;
