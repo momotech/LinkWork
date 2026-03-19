@@ -37,6 +37,8 @@ public class TaskV1Service {
 
     private static final String RUNTIME_SIDECAR = "SIDECAR";
     private static final String RUNTIME_ALONE = "ALONE";
+    private static final String DELIVERY_MODE_GIT = "git";
+    private static final String DELIVERY_MODE_OSS = "oss";
 
     private final LinkworkTaskMapper taskMapper;
     private final LinkworkFileMapper fileMapper;
@@ -78,8 +80,12 @@ public class TaskV1Service {
         configMap.put("modelId", request.getModelId());
         configMap.put("image", task.getImage());
         if (StringUtils.hasText(role.getPrompt())) {
-            configMap.put("rolePrompt", role.getPrompt().trim());
-            configMap.put("systemPromptAppend", role.getPrompt().trim());
+            String rolePrompt = role.getPrompt().trim();
+            configMap.put("rolePrompt", rolePrompt);
+            configMap.put("systemPromptAppend", rolePrompt);
+            Map<String, String> promptLayers = new LinkedHashMap<>();
+            promptLayers.put("rolePrompt", rolePrompt);
+            configMap.put("promptLayers", promptLayers);
         }
         TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(role);
         configMap.put("runtimeMode", roleRuntime.runtimeMode());
@@ -154,8 +160,28 @@ public class TaskV1Service {
 
     @Transactional
     public LinkworkTask updateStatus(String taskNo, TaskStatus status) {
+        return updateStatusWithUsage(taskNo, status, null, null);
+    }
+
+    @Transactional
+    public LinkworkTask updateStatusWithUsage(String taskNo, TaskStatus status, Integer tokensUsed, Long durationMs) {
         LinkworkTask task = getTaskByNo(taskNo);
         task.setStatus(status);
+
+        if (tokensUsed != null && tokensUsed >= 0) {
+            Integer currentTokens = task.getTokensUsed();
+            if (tokensUsed > 0 || currentTokens == null || currentTokens <= 0) {
+                task.setTokensUsed(tokensUsed);
+            }
+        }
+
+        if (durationMs != null && durationMs >= 0) {
+            Long currentDuration = task.getDurationMs();
+            if (durationMs > 0 || currentDuration == null || currentDuration <= 0) {
+                task.setDurationMs(durationMs);
+            }
+        }
+
         task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
         cronJobService.onTaskStatusChanged(task, status);
@@ -313,16 +339,30 @@ public class TaskV1Service {
         try {
             String queueKey = dispatchConfig.getTaskQueueKey(task.getWorkstationId());
             Map<String, Object> taskConfig = parseTaskConfig(task.getConfigJson());
-            List<Map<String, String>> gitConfig = extractGitConfig(taskConfig);
-            String deliveryMode = gitConfig.isEmpty() ? "oss" : "git";
+            List<Map<String, String>> gitConfig = buildDispatchGitConfig(task, taskConfig);
+            String deliveryMode = resolveDispatchDeliveryMode(taskConfig, gitConfig);
+            if (DELIVERY_MODE_GIT.equals(deliveryMode) && gitConfig.isEmpty()) {
+                log.warn("Task dispatch downgraded to oss because git_config is empty: taskNo={}", task.getTaskNo());
+                deliveryMode = DELIVERY_MODE_OSS;
+            }
 
             Map<String, Object> msg = new HashMap<>();
             msg.put("task_id", task.getTaskNo());
             msg.put("user_id", StringUtils.hasText(task.getCreatorId()) ? task.getCreatorId() : "system");
-            msg.put("content", task.getPrompt());
-            msg.put("system_prompt_append", resolveSystemPromptAppend(task, taskConfig));
+            msg.put("content", resolveDispatchContent(task, taskConfig));
+            msg.put("system_prompt_append", resolveDispatchSystemPromptAppend(task, taskConfig));
+            Map<String, String> promptLayers = resolveDispatchPromptLayers(taskConfig);
+            if (!promptLayers.isEmpty()) {
+                msg.put("prompt_layers", promptLayers);
+            }
             msg.put("delivery_mode", deliveryMode);
-            msg.put("git_config", gitConfig);
+            if (DELIVERY_MODE_GIT.equals(deliveryMode)) {
+                msg.put("git_config", gitConfig);
+            }
+            List<Map<String, String>> filePathMappings = parseDispatchFilePathMappings(taskConfig);
+            if (!filePathMappings.isEmpty()) {
+                msg.put("file_path_mappings", filePathMappings);
+            }
             msg.put("source", task.getSource());
             msg.put("cron_job_id", task.getCronJobId());
             if (task.getWorkstationId() != null) {
@@ -487,7 +527,15 @@ public class TaskV1Service {
         return new HashMap<>();
     }
 
-    private String resolveSystemPromptAppend(LinkworkTask task, Map<String, Object> configMap) {
+    private String resolveDispatchContent(LinkworkTask task, Map<String, Object> configMap) {
+        String resolved = readText(configMap, "resolvedContent");
+        if (StringUtils.hasText(resolved)) {
+            return resolved;
+        }
+        return task.getPrompt();
+    }
+
+    private String resolveDispatchSystemPromptAppend(LinkworkTask task, Map<String, Object> configMap) {
         String prompt = firstNonBlank(
                 readText(configMap, "systemPromptAppend"),
                 readText(configMap, "system_prompt_append"),
@@ -506,9 +554,37 @@ public class TaskV1Service {
         return "You are a LinkWork execution agent.";
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, String>> extractGitConfig(Map<String, Object> configMap) {
-        List<Map<String, String>> gitConfig = convertGitReposToDispatch(configMap.get("gitRepos"));
+    private Map<String, String> resolveDispatchPromptLayers(Map<String, Object> configMap) {
+        Map<String, Object> promptLayersNode = asMap(configMap.get("promptLayers"));
+        if (promptLayersNode.isEmpty()) {
+            promptLayersNode = asMap(configMap.get("prompt_layers"));
+        }
+        Map<String, String> layers = new LinkedHashMap<>();
+        String platformPrompt = firstNonBlank(
+                readText(promptLayersNode, "platformPrompt"),
+                readText(promptLayersNode, "platform_prompt"));
+        String rolePrompt = firstNonBlank(
+                readText(promptLayersNode, "rolePrompt"),
+                readText(promptLayersNode, "role_prompt"),
+                readText(configMap, "rolePrompt"),
+                readText(configMap, "role_prompt"));
+        String userSoul = firstNonBlank(
+                readText(promptLayersNode, "userSoul"),
+                readText(promptLayersNode, "user_soul"));
+        if (StringUtils.hasText(platformPrompt)) {
+            layers.put("platform_prompt", platformPrompt);
+        }
+        if (StringUtils.hasText(rolePrompt)) {
+            layers.put("role_prompt", rolePrompt);
+        }
+        if (StringUtils.hasText(userSoul)) {
+            layers.put("user_soul", userSoul);
+        }
+        return layers;
+    }
+
+    private List<Map<String, String>> buildDispatchGitConfig(LinkworkTask task, Map<String, Object> configMap) {
+        List<Map<String, String>> gitConfig = convertGitReposToDispatch(task, configMap.get("gitRepos"));
         if (!gitConfig.isEmpty()) {
             return gitConfig;
         }
@@ -516,18 +592,59 @@ public class TaskV1Service {
         if (!(customRaw instanceof Map<?, ?> customMap)) {
             return List.of();
         }
-        Map<String, Object> custom = new HashMap<>();
-        for (Map.Entry<?, ?> entry : customMap.entrySet()) {
-            custom.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-        gitConfig = convertGitReposToDispatch(custom.get("gitRepos"));
+        Map<String, Object> custom = asMap(customMap);
+        gitConfig = convertGitReposToDispatch(task, custom.get("gitRepos"));
         if (!gitConfig.isEmpty()) {
             return gitConfig;
         }
-        return convertGitReposToDispatch(custom.get("git_config"));
+        return convertGitReposToDispatch(task, custom.get("git_config"));
     }
 
-    private List<Map<String, String>> convertGitReposToDispatch(Object rawGitRepos) {
+    private String resolveDispatchDeliveryMode(Map<String, Object> configMap, List<Map<String, String>> gitConfig) {
+        String snapshotMode = firstNonBlank(
+                readText(configMap, "deliveryMode"),
+                readText(configMap, "delivery_mode"));
+        if (StringUtils.hasText(snapshotMode)) {
+            String normalized = normalizeDeliveryMode(snapshotMode);
+            if (StringUtils.hasText(normalized)) {
+                return normalized;
+            }
+        }
+        return gitConfig.isEmpty() ? DELIVERY_MODE_OSS : DELIVERY_MODE_GIT;
+    }
+
+    private String normalizeDeliveryMode(String mode) {
+        if (!StringUtils.hasText(mode)) {
+            return null;
+        }
+        String normalized = mode.trim().toLowerCase(Locale.ROOT);
+        if (DELIVERY_MODE_GIT.equals(normalized) || DELIVERY_MODE_OSS.equals(normalized)) {
+            return normalized;
+        }
+        return null;
+    }
+
+    private List<Map<String, String>> parseDispatchFilePathMappings(Map<String, Object> configMap) {
+        Map<String, Object> aliasMap = asMap(configMap.get("aliasMap"));
+        if (aliasMap.isEmpty()) {
+            aliasMap = asMap(configMap.get("alias_map"));
+        }
+        if (aliasMap.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, String>> mappings = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : aliasMap.entrySet()) {
+            String runtimePath = textOf(entry.getKey());
+            String realPath = textOf(entry.getValue());
+            if (!StringUtils.hasText(runtimePath) || !StringUtils.hasText(realPath)) {
+                continue;
+            }
+            mappings.add(Map.of("runtime_path", runtimePath, "real_path", realPath));
+        }
+        return mappings;
+    }
+
+    private List<Map<String, String>> convertGitReposToDispatch(LinkworkTask task, Object rawGitRepos) {
         if (!(rawGitRepos instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
@@ -554,10 +671,21 @@ public class TaskV1Service {
             String taskBranch = firstNonBlank(
                     textOf(map.get("task_branch")),
                     textOf(map.get("taskBranch")));
-            if (StringUtils.hasText(taskBranch)) {
-                normalized.put("task_branch", taskBranch.trim());
-            }
+            normalized.put("task_branch", StringUtils.hasText(taskBranch)
+                    ? taskBranch.trim()
+                    : "feat/" + task.getTaskNo());
             result.add(normalized);
+        }
+        return result;
+    }
+
+    private Map<String, Object> asMap(Object raw) {
+        if (!(raw instanceof Map<?, ?> map)) {
+            return new HashMap<>();
+        }
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            result.put(String.valueOf(entry.getKey()), entry.getValue());
         }
         return result;
     }
