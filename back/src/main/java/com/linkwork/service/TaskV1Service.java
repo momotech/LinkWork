@@ -14,8 +14,8 @@ import com.linkwork.model.dto.TaskCreateRequest;
 import com.linkwork.model.dto.TaskResponse;
 import com.linkwork.model.entity.LinkworkFile;
 import com.linkwork.model.entity.LinkworkTask;
-import com.linkwork.model.entity.WorkstationEntity;
 import com.linkwork.model.enums.TaskStatus;
+import com.linkwork.model.role.RoleRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -39,7 +39,7 @@ public class TaskV1Service {
     private final LinkworkFileMapper fileMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final WorkstationV1Service workstationService;
+    private final RoleService roleService;
     private final SnowflakeIdGenerator idGenerator;
     private final DispatchConfig dispatchConfig;
     private final CronJobV1Service cronJobService;
@@ -50,18 +50,18 @@ public class TaskV1Service {
                                     String creatorIp, String source, Long cronJobId) {
         String taskNo = idGenerator.nextTaskNo();
 
-        WorkstationEntity ws = workstationService.getById(request.getRoleId());
-        if (ws == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
+        RoleRecord role = roleService.getById(request.getRoleId());
+        if (role == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
 
         LinkworkTask task = new LinkworkTask();
         task.setTaskNo(taskNo);
         task.setWorkstationId(request.getRoleId());
-        task.setWorkstationName(ws.getName());
+        task.setWorkstationName(role.getName());
         task.setPrompt(request.getPrompt());
         task.setStatus(TaskStatus.PENDING);
         task.setSource(normalizeSource(source));
         task.setCronJobId("CRON".equals(task.getSource()) ? cronJobId : null);
-        task.setImage(ws.getImage() != null ? ws.getImage() : "ubuntu-22.04-python3.10");
+        task.setImage(role.getImage() != null ? role.getImage() : "ubuntu-22.04-python3.10");
         task.setSelectedModel(request.getModelId());
         task.setAssemblyId(request.getAssemblyId());
         task.setCreatorId(creatorId);
@@ -76,12 +76,12 @@ public class TaskV1Service {
         if (request.getFileIds() != null && !request.getFileIds().isEmpty()) {
             configMap.put("fileIds", request.getFileIds());
         }
-        if (ws.getConfigJson() != null) {
-            configMap.put("mcp", ws.getConfigJson().getMcp());
-            configMap.put("skills", ws.getConfigJson().getSkills());
-            configMap.put("knowledge", ws.getConfigJson().getKnowledge());
-            configMap.put("gitRepos", ws.getConfigJson().getGitRepos());
-            configMap.put("env", ws.getConfigJson().getEnv());
+        if (role.getConfigJson() != null && !role.getConfigJson().isEmpty()) {
+            configMap.put("mcp", role.getConfigJson().get("mcp"));
+            configMap.put("skills", role.getConfigJson().get("skills"));
+            configMap.put("knowledge", role.getConfigJson().get("knowledge"));
+            configMap.put("gitRepos", role.getConfigJson().get("gitRepos"));
+            configMap.put("env", role.getConfigJson().get("env"));
         }
         if (request.getConfigJson() != null) {
             configMap.put("custom", request.getConfigJson());
@@ -106,7 +106,7 @@ public class TaskV1Service {
         });
 
         log.info("Task created: taskNo={}, roleId={}, roleName={}, modelId={}",
-                taskNo, ws.getId(), ws.getName(), request.getModelId());
+                taskNo, role.getId(), role.getName(), request.getModelId());
         return task;
     }
 
