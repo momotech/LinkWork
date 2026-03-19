@@ -39,7 +39,9 @@ Each component maintains its own version independently.
 - Approval workflow for high-risk operations
 - Cron-based shift scheduling
 - Multi-model support via OpenAI-compatible interface
-- Docker Compose quick-start launcher
+
+#### Planned after full open-source release
+- Docker Compose local experience / single-node launcher
 
 [Unreleased]: https://github.com/momotech/LinkWork/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/momotech/LinkWork/releases/tag/v0.1.0

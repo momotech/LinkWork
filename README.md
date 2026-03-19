@@ -5,7 +5,9 @@
 
 ### Make AI Work Like Your Team
 
-**Open-source enterprise AI workforce platform — Roles · Skills · Tools · Security · Scheduling, all in one place**
+**Open-source AI execution platform for enterprise teams**
+
+*Turn chatty agents into secure, role-based AI workers that can actually deliver.*
 
 English | [中文](./README_zh-CN.md)
 
@@ -20,19 +22,44 @@ English | [中文](./README_zh-CN.md)
 
 ## What Is LinkWork
 
-LinkWork is an open-source **enterprise AI agent platform** that orchestrates containerized AI workforces on **Kubernetes**. Define roles, assign declarative **skills**, connect **MCP** (Model Context Protocol) tools, enforce security policies — and let multi-agent teams run autonomously in isolated containers.
+LinkWork is an open-source **enterprise AI execution platform** for teams that need more than a chatbot. It helps companies turn AI from a single assistant into a **managed workforce**: workers have roles, skills, tool permissions, security boundaries, and scheduled jobs — so they can execute real tasks instead of only replying in chat.
 
-You can run it like a company: create **roles**, equip each role with **skills**, authorize available **tools**, set **security policies**, arrange **task schedules** — then let your AI workers run 24/7 in their own isolated containers, track progress in real time, and automatically intercept high-risk operations for human approval.
+In practice, LinkWork is designed for teams that want to:
 
-Not a chatbot. Not a personal assistant. An **enterprise-grade AI team management system**.
+- run multiple AI workers in parallel instead of relying on one general-purpose agent
+- assign clear responsibilities such as engineering, operations, support, or research
+- connect models to internal tools and MCP services in a controlled way
+- review, approve, and audit risky actions before they reach production
+- ship outputs as deliverables, not just conversations
 
-LinkWork 是一个开源的企业级 **AI Agent 平台**，在 **Kubernetes** 上编排容器化的 AI 劳动力。声明式定义岗位、装配技能、接入 **MCP**（Model Context Protocol）工具、执行安全策略 — 让多 Agent 团队在隔离容器中自主运行。
+Under the hood, LinkWork uses containerized infrastructure to run and govern AI workers in production. Roles, declarative **skills**, **MCP** tools, security policies, and scheduling work together so AI can operate like part of a real team — while still meeting enterprise requirements for control, isolation, and scale.
 
-你可以像经营一家公司一样管理 AI：设立**岗位**，为每个岗位装配**技能**，授权可用的**工具**，设定**安全策略**，安排**计划任务** — 然后让 AI 员工在各自独立的容器中 7x24 运行，实时追踪进度，高风险操作自动拦截审批。
+Not a chatbot. Not a personal assistant. An **enterprise-grade system for running AI workers safely at scale**.
 
-不是一个聊天机器人，不是一个个人助手，而是一个**企业级的 AI 团队管理系统**。
+For production environments, LinkWork is designed around containerized infrastructure and Kubernetes-style operations. That is an implementation choice for scale and governance — not the core value proposition users need to understand first.
 
 > Before paying AI a salary, give it a role, a skill set, and a security policy.
+
+## Why LinkWork
+
+Most AI products stop at assistance: they answer questions, generate content, or help with drafts. LinkWork is built for teams that need AI to go one step further — to **execute work safely, repeatedly, and under governance**.
+
+What makes it different:
+
+- **From one assistant to many workers** — run multiple AI workers with clear responsibilities instead of overloading one general-purpose agent
+- **From chat to execution** — connect AI to tools, workflows, repositories, and scheduled jobs so it can produce outcomes, not just responses
+- **From prompts to governance** — define roles, permissions, approval rules, and audit trails before AI touches real systems
+- **From demos to production** — use container isolation, governed scheduling, and delivery-oriented task flows to support real enterprise workloads
+
+## Typical Use Cases
+
+Teams can use LinkWork to build AI workers for scenarios such as:
+
+- **Engineering** — code generation, code review, repository tasks, release workflows
+- **Operations** — scheduled inspections, incident triage, environment checks, routine automation
+- **Support & service** — internal knowledge assistance, ticket handling, workflow routing
+- **Research & analysis** — information gathering, reporting, structured synthesis, recurring monitoring
+- **Cross-functional workflows** — connecting people, tools, approvals, and AI workers in one controlled system
 
 ## Core Design Philosophy
 
@@ -79,7 +106,7 @@ Behind the marketplace is a complete **supply chain governance system** — unif
 
 ## Key Features
 
-- **Containerized Service Orchestration** — Each AI worker runs in its own container, K8s-native scheduling with elastic scaling and self-healing
+- **Containerized Service Orchestration** — Each AI worker runs in its own container, with production-grade scheduling, elastic scaling, and self-healing
 - **AI Role Management** — Define job responsibilities and capability boundaries; swap workers without changing roles
 - **Skills Marketplace** — Declarative Skills, version-pinned and embedded at build time
 - **MCP Tool Bus** — Compatible with [MCP protocol](https://modelcontextprotocol.io/) standard, unified proxy, auth, and usage metering
@@ -188,10 +215,10 @@ Projects like OpenClaw are excellent personal AI assistants — running on your 
 |---|--------------------------------------|----------|
 | **Positioning** | Personal productivity tool | Enterprise workforce platform |
 | **Scale** | Single user, single Agent | Multi-team, multiple AI workers in parallel |
-| **Runtime Env** | Local single machine | K8s cluster, container isolation |
+| **Runtime Env** | Local single machine | Containerized, multi-worker runtime |
 | **Capability Mgmt** | Community plugins, self-install | Role → Skill → Tool, three-tier governance |
 | **Security** | Relies on user discretion | Approval workflow + policy engine + audit |
-| **Deployment** | `npm install -g` | K8s |
+| **Production Deployment** | Lightweight local install | Kubernetes-recommended |
 | **Skills Reuse** | Personal accumulation, hard to share | Skills proven on personal tools migrate directly in, shared across teams, reliably executed |
 
 > Personal assistants solve "my productivity". LinkWork solves "organizational effectiveness". Skills you've refined on personal tools can go straight into LinkWork, becoming standardized capabilities your entire team can use.
@@ -215,15 +242,16 @@ LinkWork follows a **phased open-source** strategy, ensuring each component is i
 | Phase 1 | linkwork-server | Backend core with full scheduling engine and demo launcher | Late March 2026 |
 | Phase 2 | linkwork-executor + linkwork-agent-sdk | Execution layer — secure executor + Agent runtime | Late March 2026 |
 | Phase 3 | linkwork-mcp-gateway + linkwork-web | Access layer — MCP tool gateway + frontend reference implementation | End of March 2026 |
+| Phase 4 | Local Docker experience | Single-node / Docker Compose packaging for developer trial and demos | After full OSS release |
 
-> All components are planned to be fully open-sourced before April 1, 2026. Watch this repo for updates.
+> All core components are planned to be fully open-sourced before April 1, 2026. A local Docker experience is planned after that milestone, so the platform can stabilize first before packaging a lightweight trial setup.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Quick Start](./docs/quick-start.md) | Prerequisites, cloning submodules, launching platform services |
-| [Deployment Guide](./docs/guides/deployment.md) | K8s production deployment, Harbor, MySQL, Volcano |
+| [Quick Start](./docs/quick-start.md) | Prerequisites, cloning submodules, and bringing up current open-source components |
+| [Deployment Guide](./docs/guides/deployment.md) | Kubernetes-oriented production deployment, Harbor, MySQL, Volcano |
 | [Extension Guide](./docs/guides/extension.md) | Custom roles, Skills, MCP tools, file management, Git projects |
 | [Workstation Model](./docs/concepts/workstation.md) | Role → Instance → Task model |
 | [Skills System](./docs/concepts/skills.md) | Declarative skills, version pinning, build-time injection |
