@@ -13,6 +13,7 @@ import com.linkwork.agent.sandbox.core.model.SandboxSpec;
 import com.linkwork.agent.sandbox.core.model.SandboxStatus;
 import com.linkwork.agent.sandbox.core.model.VolumeMountDef;
 import com.linkwork.config.ImageBuildProperties;
+import com.linkwork.config.NfsStorageConfig;
 import com.linkwork.model.dto.GeneratedSpec;
 import com.linkwork.model.dto.ImageBuildResult;
 import com.linkwork.model.dto.PodGroupStatusInfo;
@@ -53,6 +54,7 @@ public class SandboxScheduleService {
     private final SandboxOrchestrator sandboxOrchestrator;
     private final ImageBuildService imageBuildService;
     private final ImageBuildProperties imageBuildProperties;
+    private final NfsStorageConfig nfsStorageConfig;
     private final McpServerService mcpServerService;
     private final ObjectMapper objectMapper;
     private volatile String cachedDefaultAgentConfig;
@@ -61,11 +63,13 @@ public class SandboxScheduleService {
     public SandboxScheduleService(SandboxOrchestrator sandboxOrchestrator,
                                   ImageBuildService imageBuildService,
                                   ImageBuildProperties imageBuildProperties,
+                                  NfsStorageConfig nfsStorageConfig,
                                   McpServerService mcpServerService,
                                   ObjectMapper objectMapper) {
         this.sandboxOrchestrator = sandboxOrchestrator;
         this.imageBuildService = imageBuildService;
         this.imageBuildProperties = imageBuildProperties;
+        this.nfsStorageConfig = nfsStorageConfig;
         this.mcpServerService = mcpServerService;
         this.objectMapper = objectMapper;
     }
@@ -374,6 +378,7 @@ public class SandboxScheduleService {
                 mountDefs.add(mountDef);
             }
         }
+        attachDefaultOssMountsIfMissing(request, mountDefs);
 
         attachManagedRuntimeResources(request, spec, injectedEnvs, mountDefs);
         spec.setMounts(mountDefs);
@@ -450,6 +455,65 @@ public class SandboxScheduleService {
     }
     private int nullSafe(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private void attachDefaultOssMountsIfMissing(ServiceBuildRequest request, List<VolumeMountDef> mountDefs) {
+        String basePath = nfsStorageConfig == null ? null : nfsStorageConfig.getBasePath();
+        if (!StringUtils.hasText(basePath)) {
+            basePath = "/mnt/oss/robot-agent-files";
+        }
+        String workstationId = resolveWorkstationId(request);
+        if (!StringUtils.hasText(workstationId)) {
+            workstationId = request.getServiceId();
+        }
+        String normalizedBase = basePath.endsWith("/") ? basePath.substring(0, basePath.length() - 1) : basePath;
+
+        addHostPathMountIfMissing(
+                mountDefs,
+                "oss-data",
+                normalizedBase + "/system/" + workstationId,
+                "/data/oss/robot");
+        addHostPathMountIfMissing(
+                mountDefs,
+                "oss-user-files",
+                normalizedBase + "/user-files",
+                "/mnt/user-files");
+        addHostPathMountIfMissing(
+                mountDefs,
+                "oss-workstation",
+                normalizedBase + "/workstation/" + workstationId,
+                "/mnt/workstation");
+    }
+
+    private void addHostPathMountIfMissing(List<VolumeMountDef> mountDefs,
+                                           String name,
+                                           String hostPath,
+                                           String mountPath) {
+        if (hasMountPath(mountDefs, mountPath)) {
+            return;
+        }
+        VolumeMountDef mountDef = new VolumeMountDef();
+        mountDef.setName(name);
+        mountDef.setHostPath(hostPath);
+        mountDef.setHostPathType("DirectoryOrCreate");
+        mountDef.setMountPath(mountPath);
+        mountDef.setReadOnly(false);
+        mountDef.setMountPropagation("HostToContainer");
+        mountDef.setContainerTargets(Collections.singletonList("agent"));
+        mountDefs.add(mountDef);
+        log.info("Injected default OSS mount: hostPath={}, mountPath={}", hostPath, mountPath);
+    }
+
+    private boolean hasMountPath(List<VolumeMountDef> mountDefs, String mountPath) {
+        if (mountDefs == null || !StringUtils.hasText(mountPath)) {
+            return false;
+        }
+        for (VolumeMountDef mountDef : mountDefs) {
+            if (mountDef != null && mountPath.equals(mountDef.getMountPath())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ScaleResult toScaleResult(String serviceId, SandboxScaleResult source) {
