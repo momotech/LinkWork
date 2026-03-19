@@ -14,8 +14,8 @@ import com.linkwork.model.dto.TaskCreateRequest;
 import com.linkwork.model.dto.TaskResponse;
 import com.linkwork.model.entity.LinkworkFile;
 import com.linkwork.model.entity.LinkworkTask;
-import com.linkwork.model.entity.WorkstationEntity;
 import com.linkwork.model.enums.TaskStatus;
+import com.linkwork.model.role.RoleRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,11 +35,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TaskV1Service {
 
+    private static final String RUNTIME_SIDECAR = "SIDECAR";
+    private static final String RUNTIME_ALONE = "ALONE";
+    private static final String DELIVERY_MODE_GIT = "git";
+    private static final String DELIVERY_MODE_OSS = "oss";
+
     private final LinkworkTaskMapper taskMapper;
     private final LinkworkFileMapper fileMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final WorkstationV1Service workstationService;
+    private final RoleService roleService;
     private final SnowflakeIdGenerator idGenerator;
     private final DispatchConfig dispatchConfig;
     private final CronJobV1Service cronJobService;
@@ -50,19 +55,19 @@ public class TaskV1Service {
                                     String creatorIp, String source, Long cronJobId) {
         String taskNo = idGenerator.nextTaskNo();
 
-        WorkstationEntity ws = workstationService.getById(request.getWorkstationId());
-        if (ws == null) throw new IllegalArgumentException("Workstation not found: " + request.getWorkstationId());
+        RoleRecord role = roleService.getById(request.getRoleId());
+        if (role == null) throw new IllegalArgumentException("Role not found: " + request.getRoleId());
 
         LinkworkTask task = new LinkworkTask();
         task.setTaskNo(taskNo);
-        task.setWorkstationId(request.getWorkstationId());
-        task.setWorkstationName(ws.getName());
+        task.setWorkstationId(request.getRoleId());
+        task.setWorkstationName(role.getName());
         task.setPrompt(request.getPrompt());
         task.setStatus(TaskStatus.PENDING);
         task.setSource(normalizeSource(source));
         task.setCronJobId("CRON".equals(task.getSource()) ? cronJobId : null);
-        task.setImage(ws.getImage() != null ? ws.getImage() : "ubuntu-22.04-python3.10");
-        task.setSelectedModel(request.getSelectedModel());
+        task.setImage(role.getImage() != null ? role.getImage() : "ubuntu-22.04-python3.10");
+        task.setSelectedModel(request.getModelId());
         task.setAssemblyId(request.getAssemblyId());
         task.setCreatorId(creatorId);
         task.setCreatorName(creatorName);
@@ -72,16 +77,29 @@ public class TaskV1Service {
         task.setIsDeleted(0);
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("selectedModel", request.getSelectedModel());
+        configMap.put("modelId", request.getModelId());
+        configMap.put("image", task.getImage());
+        if (StringUtils.hasText(role.getPrompt())) {
+            String rolePrompt = role.getPrompt().trim();
+            configMap.put("rolePrompt", rolePrompt);
+            configMap.put("systemPromptAppend", rolePrompt);
+            Map<String, String> promptLayers = new LinkedHashMap<>();
+            promptLayers.put("rolePrompt", rolePrompt);
+            configMap.put("promptLayers", promptLayers);
+        }
+        TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(role);
+        configMap.put("runtimeMode", roleRuntime.runtimeMode());
+        configMap.put("zzMode", roleRuntime.zzMode());
+        configMap.put("runnerImage", roleRuntime.runnerImage());
         if (request.getFileIds() != null && !request.getFileIds().isEmpty()) {
             configMap.put("fileIds", request.getFileIds());
         }
-        if (ws.getConfigJson() != null) {
-            configMap.put("mcp", ws.getConfigJson().getMcp());
-            configMap.put("skills", ws.getConfigJson().getSkills());
-            configMap.put("knowledge", ws.getConfigJson().getKnowledge());
-            configMap.put("gitRepos", ws.getConfigJson().getGitRepos());
-            configMap.put("env", ws.getConfigJson().getEnv());
+        if (role.getConfigJson() != null && !role.getConfigJson().isEmpty()) {
+            configMap.put("mcp", role.getConfigJson().get("mcp"));
+            configMap.put("skills", role.getConfigJson().get("skills"));
+            configMap.put("knowledge", role.getConfigJson().get("knowledge"));
+            configMap.put("gitRepos", role.getConfigJson().get("gitRepos"));
+            configMap.put("env", role.getConfigJson().get("env"));
         }
         if (request.getConfigJson() != null) {
             configMap.put("custom", request.getConfigJson());
@@ -105,8 +123,8 @@ public class TaskV1Service {
             }
         });
 
-        log.info("Task created: taskNo={}, wsId={}, wsName={}, model={}",
-                taskNo, ws.getId(), ws.getName(), request.getSelectedModel());
+        log.info("Task created: taskNo={}, roleId={}, roleName={}, modelId={}",
+                taskNo, role.getId(), role.getName(), request.getModelId());
         return task;
     }
 
@@ -129,12 +147,12 @@ public class TaskV1Service {
         return task;
     }
 
-    public Page<LinkworkTask> listTasks(Long wsId, String status, Integer page, Integer pageSize, String creatorId) {
+    public Page<LinkworkTask> listTasks(Long roleId, String status, Integer page, Integer pageSize, String creatorId) {
         LambdaQueryWrapper<LinkworkTask> w = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(creatorId) && !adminAccessService.isAdmin(creatorId)) {
             w.eq(LinkworkTask::getCreatorId, creatorId);
         }
-        if (wsId != null) w.eq(LinkworkTask::getWorkstationId, wsId);
+        if (roleId != null) w.eq(LinkworkTask::getWorkstationId, roleId);
         if (StringUtils.hasText(status)) w.eq(LinkworkTask::getStatus, TaskStatus.valueOf(status.toUpperCase()));
         w.orderByDesc(LinkworkTask::getCreatedAt);
         return taskMapper.selectPage(new Page<>(page, pageSize), w);
@@ -142,8 +160,28 @@ public class TaskV1Service {
 
     @Transactional
     public LinkworkTask updateStatus(String taskNo, TaskStatus status) {
+        return updateStatusWithUsage(taskNo, status, null, null);
+    }
+
+    @Transactional
+    public LinkworkTask updateStatusWithUsage(String taskNo, TaskStatus status, Integer tokensUsed, Long durationMs) {
         LinkworkTask task = getTaskByNo(taskNo);
         task.setStatus(status);
+
+        if (tokensUsed != null && tokensUsed >= 0) {
+            Integer currentTokens = task.getTokensUsed();
+            if (tokensUsed > 0 || currentTokens == null || currentTokens <= 0) {
+                task.setTokensUsed(tokensUsed);
+            }
+        }
+
+        if (durationMs != null && durationMs >= 0) {
+            Long currentDuration = task.getDurationMs();
+            if (durationMs > 0 || currentDuration == null || currentDuration <= 0) {
+                task.setDurationMs(durationMs);
+            }
+        }
+
         task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
         cronJobService.onTaskStatusChanged(task, status);
@@ -241,11 +279,12 @@ public class TaskV1Service {
         TaskResponse r = new TaskResponse();
         r.setId(task.getId());
         r.setTaskNo(task.getTaskNo());
-        r.setWorkstationId(task.getWorkstationId());
-        r.setWorkstationName(task.getWorkstationName());
+        r.setRoleId(task.getWorkstationId());
+        r.setRoleName(task.getWorkstationName());
         r.setPrompt(task.getPrompt());
         r.setStatus(task.getStatus());
         r.setImage(task.getImage());
+        r.setModelId(task.getSelectedModel());
         r.setSelectedModel(task.getSelectedModel());
         r.setAssemblyId(task.getAssemblyId());
         r.setSource(task.getSource());
@@ -262,6 +301,7 @@ public class TaskV1Service {
         r.setCreatedAt(task.getCreatedAt());
         r.setUpdatedAt(task.getUpdatedAt());
 
+        Map<String, Object> configMap = null;
         if (StringUtils.hasText(task.getReportJson())) {
             try {
                 r.setReportJson(objectMapper.readValue(task.getReportJson(), Object.class));
@@ -271,11 +311,22 @@ public class TaskV1Service {
         }
         if (StringUtils.hasText(task.getConfigJson())) {
             try {
-                r.setConfigJson(objectMapper.readValue(task.getConfigJson(), Object.class));
+                Object parsed = objectMapper.readValue(task.getConfigJson(), Object.class);
+                r.setConfigJson(parsed);
+                if (parsed instanceof Map<?, ?> rawMap) {
+                    configMap = new HashMap<>();
+                    for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                        configMap.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                }
             } catch (JsonProcessingException e) {
                 log.warn("Failed to parse config: taskNo={}", task.getTaskNo());
             }
         }
+        TaskRuntimeProfile runtimeProfile = resolveTaskRuntimeProfile(task, configMap);
+        r.setRuntimeMode(runtimeProfile.runtimeMode());
+        r.setZzMode(runtimeProfile.zzMode());
+        r.setRunnerImage(runtimeProfile.runnerImage());
 
         return r;
     }
@@ -287,14 +338,36 @@ public class TaskV1Service {
     private void pushToDispatchQueue(LinkworkTask task) {
         try {
             String queueKey = dispatchConfig.getTaskQueueKey(task.getWorkstationId());
+            Map<String, Object> taskConfig = parseTaskConfig(task.getConfigJson());
+            List<Map<String, String>> gitConfig = buildDispatchGitConfig(task, taskConfig);
+            String deliveryMode = resolveDispatchDeliveryMode(taskConfig, gitConfig);
+            if (DELIVERY_MODE_GIT.equals(deliveryMode) && gitConfig.isEmpty()) {
+                log.warn("Task dispatch downgraded to oss because git_config is empty: taskNo={}", task.getTaskNo());
+                deliveryMode = DELIVERY_MODE_OSS;
+            }
+
             Map<String, Object> msg = new HashMap<>();
             msg.put("task_id", task.getTaskNo());
             msg.put("user_id", StringUtils.hasText(task.getCreatorId()) ? task.getCreatorId() : "system");
-            msg.put("content", task.getPrompt());
+            msg.put("content", resolveDispatchContent(task, taskConfig));
+            msg.put("system_prompt_append", resolveDispatchSystemPromptAppend(task, taskConfig));
+            Map<String, String> promptLayers = resolveDispatchPromptLayers(taskConfig);
+            if (!promptLayers.isEmpty()) {
+                msg.put("prompt_layers", promptLayers);
+            }
+            msg.put("delivery_mode", deliveryMode);
+            if (DELIVERY_MODE_GIT.equals(deliveryMode)) {
+                msg.put("git_config", gitConfig);
+            }
+            List<Map<String, String>> filePathMappings = parseDispatchFilePathMappings(taskConfig);
+            if (!filePathMappings.isEmpty()) {
+                msg.put("file_path_mappings", filePathMappings);
+            }
             msg.put("source", task.getSource());
             msg.put("cron_job_id", task.getCronJobId());
             if (task.getWorkstationId() != null) {
                 msg.put("workstation_id", String.valueOf(task.getWorkstationId()));
+                msg.put("role_id", String.valueOf(task.getWorkstationId()));
             }
             String json = objectMapper.writeValueAsString(msg);
             redisTemplate.opsForList().rightPush(queueKey, json);
@@ -337,4 +410,293 @@ public class TaskV1Service {
         }
         return s;
     }
+
+    private TaskRuntimeProfile resolveTaskRuntimeProfile(LinkworkTask task, Map<String, Object> configMap) {
+        String runtimeMode = normalizeRuntimeMode(readText(configMap, "runtimeMode"));
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = normalizeRuntimeMode(readText(configMap, "podMode"));
+        }
+        String runnerImage = firstNonBlank(
+                readText(configMap, "runnerImage"),
+                readText(configMap, "runnerBaseImage"));
+        String zzMode = normalizeZzMode(readText(configMap, "zzMode"));
+
+        TaskRuntimeProfile roleRuntime = null;
+        if (!StringUtils.hasText(runtimeMode) || (RUNTIME_SIDECAR.equals(runtimeMode) && !StringUtils.hasText(runnerImage))) {
+            RoleRecord role = task.getWorkstationId() == null ? null : roleService.getById(task.getWorkstationId());
+            if (role != null) {
+                roleRuntime = resolveRoleRuntimeProfile(role);
+            }
+        }
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = roleRuntime != null ? roleRuntime.runtimeMode() : RUNTIME_ALONE;
+        }
+        if (RUNTIME_SIDECAR.equals(runtimeMode) && !StringUtils.hasText(runnerImage)) {
+            runnerImage = roleRuntime != null ? roleRuntime.runnerImage() : null;
+            if (!StringUtils.hasText(runnerImage)) {
+                runnerImage = task.getImage();
+            }
+        }
+        if (!RUNTIME_SIDECAR.equals(runtimeMode)) {
+            runnerImage = null;
+        }
+        String expectedZzMode = RUNTIME_SIDECAR.equals(runtimeMode) ? "ssh" : "local";
+        if (!expectedZzMode.equalsIgnoreCase(zzMode)) {
+            zzMode = expectedZzMode;
+        }
+        return new TaskRuntimeProfile(runtimeMode, zzMode, runnerImage);
+    }
+
+    private TaskRuntimeProfile resolveRoleRuntimeProfile(RoleRecord role) {
+        Map<String, Object> config = role.getConfigJson();
+        String runtimeMode = normalizeRuntimeMode(readText(config, "runtimeMode"));
+        if (!StringUtils.hasText(runtimeMode)) {
+            runtimeMode = RUNTIME_ALONE;
+        }
+        String runnerImage = readText(config, "runnerImage");
+        if (!RUNTIME_SIDECAR.equals(runtimeMode)) {
+            runnerImage = null;
+        }
+        String zzMode = RUNTIME_SIDECAR.equals(runtimeMode) ? "ssh" : "local";
+        return new TaskRuntimeProfile(runtimeMode, zzMode, runnerImage);
+    }
+
+    private String readText(Map<String, Object> map, String key) {
+        if (map == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return StringUtils.hasText(text) ? text : null;
+    }
+
+    private String normalizeRuntimeMode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        if (RUNTIME_SIDECAR.equals(value) || RUNTIME_ALONE.equals(value)) {
+            return value;
+        }
+        return null;
+    }
+
+    private String normalizeZzMode(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if ("ssh".equals(value) || "local".equals(value)) {
+            return value;
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseTaskConfig(String rawConfig) {
+        if (!StringUtils.hasText(rawConfig)) {
+            return new HashMap<>();
+        }
+        try {
+            Object parsed = objectMapper.readValue(rawConfig, Object.class);
+            if (parsed instanceof Map<?, ?> map) {
+                Map<String, Object> result = new HashMap<>();
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+                return result;
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse task config for dispatch: {}", e.getMessage());
+        }
+        return new HashMap<>();
+    }
+
+    private String resolveDispatchContent(LinkworkTask task, Map<String, Object> configMap) {
+        String resolved = readText(configMap, "resolvedContent");
+        if (StringUtils.hasText(resolved)) {
+            return resolved;
+        }
+        return task.getPrompt();
+    }
+
+    private String resolveDispatchSystemPromptAppend(LinkworkTask task, Map<String, Object> configMap) {
+        String prompt = firstNonBlank(
+                readText(configMap, "systemPromptAppend"),
+                readText(configMap, "system_prompt_append"),
+                readText(configMap, "rolePrompt"),
+                readText(configMap, "role_prompt"));
+        if (StringUtils.hasText(prompt)) {
+            return prompt;
+        }
+
+        if (task.getWorkstationId() != null) {
+            RoleRecord role = roleService.getById(task.getWorkstationId());
+            if (role != null && StringUtils.hasText(role.getPrompt())) {
+                return role.getPrompt().trim();
+            }
+        }
+        return "You are a LinkWork execution agent.";
+    }
+
+    private Map<String, String> resolveDispatchPromptLayers(Map<String, Object> configMap) {
+        Map<String, Object> promptLayersNode = asMap(configMap.get("promptLayers"));
+        if (promptLayersNode.isEmpty()) {
+            promptLayersNode = asMap(configMap.get("prompt_layers"));
+        }
+        Map<String, String> layers = new LinkedHashMap<>();
+        String platformPrompt = firstNonBlank(
+                readText(promptLayersNode, "platformPrompt"),
+                readText(promptLayersNode, "platform_prompt"));
+        String rolePrompt = firstNonBlank(
+                readText(promptLayersNode, "rolePrompt"),
+                readText(promptLayersNode, "role_prompt"),
+                readText(configMap, "rolePrompt"),
+                readText(configMap, "role_prompt"));
+        String userSoul = firstNonBlank(
+                readText(promptLayersNode, "userSoul"),
+                readText(promptLayersNode, "user_soul"));
+        if (StringUtils.hasText(platformPrompt)) {
+            layers.put("platform_prompt", platformPrompt);
+        }
+        if (StringUtils.hasText(rolePrompt)) {
+            layers.put("role_prompt", rolePrompt);
+        }
+        if (StringUtils.hasText(userSoul)) {
+            layers.put("user_soul", userSoul);
+        }
+        return layers;
+    }
+
+    private List<Map<String, String>> buildDispatchGitConfig(LinkworkTask task, Map<String, Object> configMap) {
+        List<Map<String, String>> gitConfig = convertGitReposToDispatch(task, configMap.get("gitRepos"));
+        if (!gitConfig.isEmpty()) {
+            return gitConfig;
+        }
+        Object customRaw = configMap.get("custom");
+        if (!(customRaw instanceof Map<?, ?> customMap)) {
+            return List.of();
+        }
+        Map<String, Object> custom = asMap(customMap);
+        gitConfig = convertGitReposToDispatch(task, custom.get("gitRepos"));
+        if (!gitConfig.isEmpty()) {
+            return gitConfig;
+        }
+        return convertGitReposToDispatch(task, custom.get("git_config"));
+    }
+
+    private String resolveDispatchDeliveryMode(Map<String, Object> configMap, List<Map<String, String>> gitConfig) {
+        String snapshotMode = firstNonBlank(
+                readText(configMap, "deliveryMode"),
+                readText(configMap, "delivery_mode"));
+        if (StringUtils.hasText(snapshotMode)) {
+            String normalized = normalizeDeliveryMode(snapshotMode);
+            if (StringUtils.hasText(normalized)) {
+                return normalized;
+            }
+        }
+        return gitConfig.isEmpty() ? DELIVERY_MODE_OSS : DELIVERY_MODE_GIT;
+    }
+
+    private String normalizeDeliveryMode(String mode) {
+        if (!StringUtils.hasText(mode)) {
+            return null;
+        }
+        String normalized = mode.trim().toLowerCase(Locale.ROOT);
+        if (DELIVERY_MODE_GIT.equals(normalized) || DELIVERY_MODE_OSS.equals(normalized)) {
+            return normalized;
+        }
+        return null;
+    }
+
+    private List<Map<String, String>> parseDispatchFilePathMappings(Map<String, Object> configMap) {
+        Map<String, Object> aliasMap = asMap(configMap.get("aliasMap"));
+        if (aliasMap.isEmpty()) {
+            aliasMap = asMap(configMap.get("alias_map"));
+        }
+        if (aliasMap.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, String>> mappings = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : aliasMap.entrySet()) {
+            String runtimePath = textOf(entry.getKey());
+            String realPath = textOf(entry.getValue());
+            if (!StringUtils.hasText(runtimePath) || !StringUtils.hasText(realPath)) {
+                continue;
+            }
+            mappings.add(Map.of("runtime_path", runtimePath, "real_path", realPath));
+        }
+        return mappings;
+    }
+
+    private List<Map<String, String>> convertGitReposToDispatch(LinkworkTask task, Object rawGitRepos) {
+        if (!(rawGitRepos instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, String>> result = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            String repo = firstNonBlank(
+                    textOf(map.get("repo")),
+                    textOf(map.get("url")));
+            String originBranch = firstNonBlank(
+                    textOf(map.get("origin_branch")),
+                    textOf(map.get("originBranch")),
+                    textOf(map.get("branch")));
+            if (!StringUtils.hasText(repo) || !StringUtils.hasText(originBranch)) {
+                continue;
+            }
+
+            Map<String, String> normalized = new HashMap<>();
+            normalized.put("repo", repo.trim());
+            normalized.put("origin_branch", originBranch.trim());
+
+            String taskBranch = firstNonBlank(
+                    textOf(map.get("task_branch")),
+                    textOf(map.get("taskBranch")));
+            normalized.put("task_branch", StringUtils.hasText(taskBranch)
+                    ? taskBranch.trim()
+                    : "feat/" + task.getTaskNo());
+            result.add(normalized);
+        }
+        return result;
+    }
+
+    private Map<String, Object> asMap(Object raw) {
+        if (!(raw instanceof Map<?, ?> map)) {
+            return new HashMap<>();
+        }
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            result.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        return result;
+    }
+
+    private String textOf(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String text = String.valueOf(raw).trim();
+        return StringUtils.hasText(text) ? text : null;
+    }
+
+    private record TaskRuntimeProfile(String runtimeMode, String zzMode, String runnerImage) {}
 }

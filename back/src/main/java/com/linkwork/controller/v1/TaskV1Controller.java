@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -20,7 +21,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
-@CrossOrigin(originPatterns = "*")
 @RequiredArgsConstructor
 public class TaskV1Controller {
 
@@ -30,8 +30,8 @@ public class TaskV1Controller {
     public ResponseEntity<Map<String, Object>> createTask(
             @Valid @RequestBody TaskCreateRequest request,
             HttpServletRequest servletRequest) {
-        String userId = UserContext.getCurrentUserId();
-        String username = UserContext.getCurrentUserName();
+        String userId = resolveUserId(servletRequest);
+        String username = resolveUserName(servletRequest);
         String ip = servletRequest.getRemoteAddr();
 
         LinkworkTask task = taskService.createTask(request, userId, username, ip, "MANUAL", null);
@@ -46,12 +46,12 @@ public class TaskV1Controller {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> listTasks(
-            @RequestParam(required = false) Long workstationId,
+            @RequestParam(required = false) Long roleId,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize) {
         String userId = UserContext.getCurrentUserId();
-        Page<LinkworkTask> result = taskService.listTasks(workstationId, status, page, pageSize, userId);
+        Page<LinkworkTask> result = taskService.listTasks(roleId, status, page, pageSize, userId);
         List<TaskResponse> items = taskService.toResponseList(result.getRecords());
 
         Map<String, Object> pagination = Map.of(
@@ -90,5 +90,29 @@ public class TaskV1Controller {
         TaskStatus status = TaskStatus.valueOf(body.get("status").toUpperCase());
         LinkworkTask task = taskService.updateStatus(taskNo, status);
         return ResponseEntity.ok(Map.of("code", 0, "data", taskService.toResponse(task)));
+    }
+
+    private String resolveUserId(HttpServletRequest request) {
+        String userId = UserContext.getCurrentUserId();
+        if (StringUtils.hasText(userId)) {
+            return userId;
+        }
+        String header = request.getHeader("X-User-Id");
+        if (StringUtils.hasText(header)) {
+            return header;
+        }
+        return "anonymous";
+    }
+
+    private String resolveUserName(HttpServletRequest request) {
+        String userName = UserContext.getCurrentUserName();
+        if (StringUtils.hasText(userName)) {
+            return userName;
+        }
+        String header = request.getHeader("X-User-Name");
+        if (StringUtils.hasText(header)) {
+            return header;
+        }
+        return "anonymous";
     }
 }

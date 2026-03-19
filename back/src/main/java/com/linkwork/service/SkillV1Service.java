@@ -117,8 +117,13 @@ public class SkillV1Service extends ServiceImpl<SkillMapper, SkillEntity> {
 
     public SkillEntity syncSingle(String skillName) {
         String latestCommit = null;
-        if (skillClient.supportsExtendedOps()) {
-            latestCommit = skillClient.getHeadCommitId(skillName);
+        try {
+            List<CommitInfo> commits = skillClient.listCommits(skillName, 1, 1);
+            if (commits != null && !commits.isEmpty()) {
+                latestCommit = commits.get(0).id();
+            }
+        } catch (Exception e) {
+            log.debug("Failed to query latest commit for {}: {}", skillName, e.getMessage());
         }
 
         String displayName = skillName;
@@ -189,13 +194,7 @@ public class SkillV1Service extends ServiceImpl<SkillMapper, SkillEntity> {
                 + "# " + name + "\n\n"
                 + skillDescription + "\n";
 
-        CommitInfo commitInfo;
-        if (skillClient.supportsExtendedOps()) {
-            commitInfo = skillClient.createSkillBranch(name, "main");
-            skillClient.upsertFile(name, "SKILL.md", content, "Initialize skill: " + name);
-        } else {
-            commitInfo = skillClient.upsertFile(name, "SKILL.md", content, "Initialize skill: " + name);
-        }
+        CommitInfo commitInfo = skillClient.upsertFile(name, "SKILL.md", content, "Initialize skill: " + name);
 
         SkillEntity entity = new SkillEntity();
         entity.setSkillNo("SKL-" + System.currentTimeMillis());
@@ -220,14 +219,10 @@ public class SkillV1Service extends ServiceImpl<SkillMapper, SkillEntity> {
         SkillEntity entity = requireSkillForWrite(name, userId);
 
         try {
-            if (skillClient.supportsExtendedOps()) {
-                skillClient.deleteSkillBranch(name);
-            } else {
-                List<FileNode> files = skillClient.getTree(name);
-                for (FileNode file : files) {
-                    if (file.type() == FileNode.NodeType.FILE) {
-                        skillClient.deleteFile(name, file.name(), "delete " + file.name());
-                    }
+            List<FileNode> files = skillClient.getTree(name);
+            for (FileNode file : files) {
+                if (file.type() == FileNode.NodeType.FILE) {
+                    skillClient.deleteFile(name, file.name(), "delete " + file.name());
                 }
             }
         } catch (Exception e) {
@@ -288,12 +283,13 @@ public class SkillV1Service extends ServiceImpl<SkillMapper, SkillEntity> {
         String content = skillClient.getFile(name, path);
 
         String commitId = null;
-        if (skillClient.supportsExtendedOps()) {
-            try {
-                commitId = skillClient.getHeadCommitId(name);
-            } catch (Exception e) {
-                log.debug("Failed to get head commit for {}: {}", name, e.getMessage());
+        try {
+            List<CommitInfo> commits = skillClient.listCommits(name, 1, 1);
+            if (commits != null && !commits.isEmpty()) {
+                commitId = commits.get(0).id();
             }
+        } catch (Exception e) {
+            log.debug("Failed to get head commit for {}: {}", name, e.getMessage());
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -342,16 +338,7 @@ public class SkillV1Service extends ServiceImpl<SkillMapper, SkillEntity> {
             throw new IllegalArgumentException("commitSha is required");
         }
 
-        if (!skillClient.supportsExtendedOps()) {
-            throw new SkillException("Revert is not supported by the current skill provider");
-        }
-
-        String oldContent = skillClient.getFileAtCommit(name, "SKILL.md", commitSha);
-        String revertMessage = "Revert to " + commitSha.substring(0, Math.min(8, commitSha.length()));
-        skillClient.upsertFile(name, "SKILL.md", oldContent, revertMessage);
-        syncSingle(name);
-
-        log.info("Reverted skill {} to commit {}", name, commitSha.substring(0, Math.min(8, commitSha.length())));
+        throw new SkillException("Revert is not supported by the current skill provider");
     }
 
     // ==================== List ====================
