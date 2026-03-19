@@ -3,7 +3,7 @@
     "model": "opus",
     "language": "Chinese",
     "env": {
-      "ANTHROPIC_BASE_URL": "<replace-with-your-anthropic-base-url>",
+      "ANTHROPIC_BASE_URL": "http://172.18.228.32:4000/",
       "ANTHROPIC_AUTH_TOKEN": "{workstationid}#{taskid}",
       "ANTHROPIC_API_KEY": "{workstationid}#{taskid}",
       "API_TIMEOUT_MS": "600000",
