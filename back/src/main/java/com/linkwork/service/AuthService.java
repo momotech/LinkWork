@@ -31,7 +31,7 @@ public class AuthService {
 
     private SecretKey secretKey;
 
-    private static final String DEFAULT_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMye.IjqQBrkHx4ELlYwBJNLPQjqc4QcJ2i";
+    private static final String DEFAULT_PASSWORD_HASH = "$2b$10$rtM/A6ztZT05SyBbW8hqy.2xRWtqg5w4YzjObpszoJGr0TOEu1kuS";
 
     @PostConstruct
     public void init() {
