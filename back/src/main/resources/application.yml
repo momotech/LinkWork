@@ -1,3 +1,6 @@
+server:
+  port: ${SERVER_PORT:8080}
+
 spring:
   application:
     name: linkwork
@@ -11,9 +14,11 @@ spring:
       maximum-pool-size: 20
       idle-timeout: 30000
       connection-timeout: 30000
-
-server:
-  port: ${SERVER_PORT:8080}
+  data:
+    redis:
+      host: ${LINKWORK_REDIS_HOST:localhost}
+      port: ${LINKWORK_REDIS_PORT:6379}
+      password: ${LINKWORK_REDIS_PASSWORD:}
 
 mybatis-plus:
   mapper-locations: classpath:/mapper/**/*.xml
@@ -25,10 +30,48 @@ mybatis-plus:
       logic-delete-value: true
       logic-not-delete-value: false
 
+nfs:
+  storage:
+    base-path: ${NFS_STORAGE_BASE_PATH:/mnt/oss/robot-agent-files}
+    download-base-url: /api/v1/files
+    task-output-base-url: /api/v1/task-outputs
+
+memory:
+  enabled: ${MEMORY_ENABLED:true}
+  milvus:
+    uri: ${MILVUS_URI:http://milvus:19530}
+    token: ${MILVUS_TOKEN:}
+  embedding:
+    model: ${MEMORY_EMBEDDING_MODEL:text-embedding-3-small}
+    dimension: ${MEMORY_EMBEDDING_DIMENSION:1536}
+  index:
+    max-chunk-size: 1500
+    overlap-lines: 2
+    queue-key: memory:index:jobs
+  oss-mount-path: ${MEMORY_OSS_MOUNT_PATH:/data/oss}
+
+llm-gateway:
+  url: ${LLM_GATEWAY_URL:http://llm-gateway:8080}
+
 linkwork:
   api:
     cors:
       allowed-origins: ${LINKWORK_ALLOWED_ORIGINS:*}
+  dispatch:
+    default-workstation-id: ${LINKWORK_DEFAULT_WS:default}
+    log-stream-prefix: logs
+    approval-key-prefix: approval
+  cron:
+    enabled: ${LINKWORK_CRON_ENABLED:true}
+    scan-interval-ms: 60000
+    dispatch-lead-ms: 180000
+    max-jobs-per-user: 50
+    max-jobs-per-workstation: 100
+    max-runs-per-job: 100
+    lock-key: lock:cron:scanner
+    lock-ttl-seconds: 55
+  task-event-consumer:
+    scan-interval-ms: 5000
   build:
     enabled: ${LINKWORK_BUILD_ENABLED:true}
     push-enabled: ${LINKWORK_BUILD_PUSH_ENABLED:true}

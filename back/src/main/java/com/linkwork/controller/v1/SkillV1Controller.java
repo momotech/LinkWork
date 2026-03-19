@@ -2,7 +2,11 @@ package com.linkwork.controller.v1;
 
 import com.linkwork.agent.skill.core.SkillException;
 import com.linkwork.common.api.ApiResponse;
+import com.linkwork.common.exception.ForbiddenOperationException;
+import com.linkwork.common.exception.ResourceNotFoundException;
+import com.linkwork.context.UserContext;
 import com.linkwork.service.SkillV1Service;
+import com.linkwork.service.skill.SkillConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,11 +19,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/skills")
@@ -32,80 +39,129 @@ public class SkillV1Controller {
     }
 
     @GetMapping
-    public ApiResponse<?> listSkills() {
-        return ApiResponse.ok(service.listSkills());
+    public ApiResponse<?> listSkills(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword) {
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.listSkills(page, pageSize, status, keyword, userId));
     }
 
     @GetMapping("/available")
     public ApiResponse<?> listAvailableSkills() {
-        return ApiResponse.ok(service.listAvailableSkills());
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.listAllAvailable(userId));
     }
 
     @PostMapping("/sync")
     public ApiResponse<?> syncSkills() {
-        return ApiResponse.ok(service.syncSkills());
+        int count = service.syncAllFromGit();
+        return ApiResponse.ok(Map.of("synced", count));
     }
 
     @GetMapping("/{name}")
     public ApiResponse<?> getSkillDetail(@PathVariable String name) {
-        return ApiResponse.ok(service.getSkillDetail(name));
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.getSkillDetail(name, userId));
     }
 
     @GetMapping("/{name}/files/**")
     public ApiResponse<?> getFileContent(@PathVariable String name, HttpServletRequest request) {
         String path = extractFilePath(request, name);
-        log.info("skill file read request: name={}, path={}", name, path);
-        return ApiResponse.ok(service.getFileContent(name, path));
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.getFileContent(name, path, userId));
     }
 
     @PutMapping("/{name}/files/**")
-    public ApiResponse<?> saveFile(@PathVariable String name,
-                                   HttpServletRequest request,
-                                   @RequestBody SkillV1Service.SaveFileRequest body) {
+    public ApiResponse<?> commitFile(@PathVariable String name,
+                                     HttpServletRequest request,
+                                     @RequestBody Map<String, Object> body) {
         String path = extractFilePath(request, name);
-        return ApiResponse.ok(service.saveFile(name, path, body));
+        String content = (String) body.get("content");
+        String commitMessage = (String) body.get("commitMessage");
+        String lastCommitId = (String) body.get("lastCommitId");
+        if (commitMessage == null || commitMessage.isBlank()) {
+            throw new IllegalArgumentException("commitMessage is required");
+        }
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.commitFile(name, path, content, commitMessage, lastCommitId, userId));
     }
 
     @PostMapping
-    public ApiResponse<?> createSkill(@RequestBody SkillV1Service.CreateSkillRequest request) {
-        return ApiResponse.ok(service.createSkill(request));
+    public ApiResponse<?> createSkill(@RequestBody Map<String, Object> request) {
+        String name = (String) request.get("name");
+        String description = (String) request.get("description");
+        Boolean isPublic = request.get("isPublic") instanceof Boolean b ? b : null;
+        String userId = UserContext.getCurrentUserId();
+        String userName = UserContext.getCurrentUserName();
+        service.createSkill(name, description, isPublic, userId, userName);
+        return ApiResponse.ok(Map.of("name", name));
     }
 
     @PutMapping("/{name}")
-    public ApiResponse<?> updateSkill(@PathVariable String name,
-                                      @RequestBody SkillV1Service.UpdateSkillRequest request) {
-        return ApiResponse.ok(service.updateSkillMeta(name, request));
+    public ApiResponse<?> updateSkillMeta(@PathVariable String name,
+                                          @RequestBody Map<String, Object> request) {
+        String userId = UserContext.getCurrentUserId();
+        String userName = UserContext.getCurrentUserName();
+        service.updateSkillMeta(name, request, userId, userName);
+        return ApiResponse.ok(Map.of("name", name));
     }
 
     @DeleteMapping("/{name}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteSkill(@PathVariable String name) {
-        service.deleteSkill(name);
+        String userId = UserContext.getCurrentUserId();
+        service.deleteSkill(name, userId);
     }
 
     @GetMapping("/{name}/history")
-    public ApiResponse<?> getHistory(@PathVariable String name, Integer page, Integer pageSize) {
-        int safePage = page == null ? 1 : page;
-        int safePageSize = pageSize == null ? 50 : pageSize;
-        return ApiResponse.ok(service.getHistory(name, safePage, safePageSize));
+    public ApiResponse<?> getHistory(@PathVariable String name,
+                                     @RequestParam(defaultValue = "1") int page,
+                                     @RequestParam(defaultValue = "50") int pageSize) {
+        String userId = UserContext.getCurrentUserId();
+        return ApiResponse.ok(service.getHistory(name, page, pageSize, userId));
     }
 
     @PostMapping("/{name}/revert")
     public ApiResponse<?> revert(@PathVariable String name,
-                                 @RequestBody SkillV1Service.RevertRequest request) {
-        service.revertSkill(name, request);
+                                 @RequestBody Map<String, Object> body) {
+        String commitSha = (String) body.get("commitSha");
+        String userId = UserContext.getCurrentUserId();
+        service.revertToCommit(name, commitSha, userId);
         return ApiResponse.ok(null);
+    }
+
+    // ==================== Exception Handlers ====================
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ApiResponse<?> handleNotFound(ResourceNotFoundException ex) {
+        return ApiResponse.error(ex.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ApiResponse<?> handleForbidden(ForbiddenOperationException ex) {
+        return ApiResponse.error(ex.getMessage());
+    }
+
+    @ResponseStatus(HttpStatus.CONFLICT)
+    @ExceptionHandler(SkillConflictException.class)
+    public ApiResponse<?> handleSkillConflict(SkillConflictException ex) {
+        return ApiResponse.error(ex.getMessage());
     }
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler({SkillException.class, IllegalArgumentException.class})
-    public ApiResponse<?> handleSkillException(Exception ex) {
+    public ApiResponse<?> handleBadRequest(Exception ex) {
         return ApiResponse.error(ex.getMessage());
     }
 
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ExceptionHandler(Exception.class)
     public ApiResponse<?> handleException(Exception ex) {
+        log.error("Unexpected error in SkillV1Controller", ex);
         return ApiResponse.error(ex.getMessage());
     }
 

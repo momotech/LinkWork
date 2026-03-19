@@ -2,6 +2,7 @@ package com.linkwork.service.skill.provider.routing;
 
 import com.linkwork.agent.skill.core.SkillException;
 import com.linkwork.agent.skill.core.SkillProvider;
+import com.linkwork.agent.skill.core.SkillProviderExtendedOps;
 import com.linkwork.agent.skill.core.model.CommitInfo;
 import com.linkwork.agent.skill.core.model.FileNode;
 import com.linkwork.agent.skill.core.model.SkillInfo;
@@ -10,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class RoutingSkillProvider implements SkillProvider {
+public class RoutingSkillProvider implements SkillProvider, SkillProviderExtendedOps {
     private final Map<String, SkillProvider> providers;
     private final String defaultProvider;
 
@@ -65,6 +66,39 @@ public class RoutingSkillProvider implements SkillProvider {
     public List<CommitInfo> listCommits(String skillName, int page, int pageSize) {
         RoutedSkill routed = route(skillName);
         return routed.provider().listCommits(routed.rawSkillName(), page, pageSize);
+    }
+
+    // ==================== Extended Ops ====================
+
+    @Override
+    public String getHeadCommitId(String skillName) {
+        RoutedSkill routed = route(skillName);
+        return requireExtended(routed).getHeadCommitId(routed.rawSkillName());
+    }
+
+    @Override
+    public String getFileAtCommit(String skillName, String filePath, String commitSha) {
+        RoutedSkill routed = route(skillName);
+        return requireExtended(routed).getFileAtCommit(routed.rawSkillName(), filePath, commitSha);
+    }
+
+    @Override
+    public CommitInfo createSkillBranch(String skillName, String fromRef) {
+        RoutedSkill routed = route(skillName);
+        return requireExtended(routed).createSkillBranch(routed.rawSkillName(), fromRef);
+    }
+
+    @Override
+    public void deleteSkillBranch(String skillName) {
+        RoutedSkill routed = route(skillName);
+        requireExtended(routed).deleteSkillBranch(routed.rawSkillName());
+    }
+
+    private SkillProviderExtendedOps requireExtended(RoutedSkill routed) {
+        if (routed.provider() instanceof SkillProviderExtendedOps ops) {
+            return ops;
+        }
+        throw new SkillException("Provider does not support extended operations");
     }
 
     private RoutedSkill route(String skillName) {
