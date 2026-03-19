@@ -5,7 +5,9 @@
 
 ### Make AI Work Like Your Team
 
-**Open-source enterprise AI workforce platform — Roles · Skills · Tools · Security · Scheduling, all in one place**
+**Open-source AI execution platform for enterprise teams**
+
+*Turn chatty agents into secure, role-based AI workers that can actually deliver.*
 
 English | [中文](./README_zh-CN.md)
 
@@ -20,17 +22,19 @@ English | [中文](./README_zh-CN.md)
 
 ## What Is LinkWork
 
-LinkWork is an open-source **enterprise AI agent platform** that orchestrates containerized AI workforces on **Kubernetes**. Define roles, assign declarative **skills**, connect **MCP** (Model Context Protocol) tools, enforce security policies — and let multi-agent teams run autonomously in isolated containers.
+LinkWork is an open-source **enterprise AI execution platform** for teams that need more than a chatbot. It helps companies turn AI from a single assistant into a **managed workforce**: workers have roles, skills, tool permissions, security boundaries, and scheduled jobs — so they can execute real tasks instead of only replying in chat.
 
-You can run it like a company: create **roles**, equip each role with **skills**, authorize available **tools**, set **security policies**, arrange **task schedules** — then let your AI workers run 24/7 in their own isolated containers, track progress in real time, and automatically intercept high-risk operations for human approval.
+In practice, LinkWork is designed for teams that want to:
 
-Not a chatbot. Not a personal assistant. An **enterprise-grade AI team management system**.
+- run multiple AI workers in parallel instead of relying on one general-purpose agent
+- assign clear responsibilities such as engineering, operations, support, or research
+- connect models to internal tools and MCP services in a controlled way
+- review, approve, and audit risky actions before they reach production
+- ship outputs as deliverables, not just conversations
 
-LinkWork 是一个开源的企业级 **AI Agent 平台**，在 **Kubernetes** 上编排容器化的 AI 劳动力。声明式定义岗位、装配技能、接入 **MCP**（Model Context Protocol）工具、执行安全策略 — 让多 Agent 团队在隔离容器中自主运行。
+Under the hood, LinkWork orchestrates containerized AI workers on **Kubernetes**. Roles, declarative **skills**, **MCP** tools, security policies, and scheduling work together so AI can operate like part of a real team — but with the control surface enterprises require.
 
-你可以像经营一家公司一样管理 AI：设立**岗位**，为每个岗位装配**技能**，授权可用的**工具**，设定**安全策略**，安排**计划任务** — 然后让 AI 员工在各自独立的容器中 7x24 运行，实时追踪进度，高风险操作自动拦截审批。
-
-不是一个聊天机器人，不是一个个人助手，而是一个**企业级的 AI 团队管理系统**。
+Not a chatbot. Not a personal assistant. An **enterprise-grade system for running AI workers safely at scale**.
 
 > Before paying AI a salary, give it a role, a skill set, and a security policy.
 
