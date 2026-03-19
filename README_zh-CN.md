@@ -244,15 +244,16 @@ LinkWork 采用**分批开源**策略，确保每个组件独立可用、文档�
 | 第一批 | linkwork-server | 后端核心，含完整调度引擎和 Demo 启动器 | 2026 年 3 月下旬 |
 | 第二批 | linkwork-executor + linkwork-agent-sdk | 执行层 — 安全执行器 + Agent 运行时 | 2026 年 3 月下旬 |
 | 第三批 | linkwork-mcp-gateway + linkwork-web | 接入层 — MCP 工具网关 + 前端参考实现 | 2026 年 3 月底 |
+| 第四批 | 本地 Docker 体验版 | 面向开发者试用与 Demo 的单机 / Docker Compose 封装 | 全量开源完成后 |
 
-> 计划于 2026 年 4 月 1 日前完成全部组件开源。关注本仓库获取最新动态。
+> 计划于 2026 年 4 月 1 日前完成核心组件开源。之后会提供本地 Docker 体验版，先保证核心能力稳定，再做轻量体验封装。
 
 ## 文档
 
 | 文档 | 说明 |
 |------|------|
-| [快速开始](./docs/quick-start_zh-CN.md) | 前提条件、拉取子项目、启动平台服务 |
-| [部署指南](./docs/guides/deployment_zh-CN.md) | K8s 生产部署、Harbor、MySQL、Volcano |
+| [快速开始](./docs/quick-start_zh-CN.md) | 前提条件、拉取子项目、启动当前已开源组件 |
+| [部署指南](./docs/guides/deployment_zh-CN.md) | 面向 Kubernetes 的生产部署、Harbor、MySQL、Volcano |
 | [扩展开发](./docs/guides/extension_zh-CN.md) | 自定义岗位、Skills、MCP 工具、文件管理、Git 项目 |
 | [岗位模型](./docs/concepts/workstation_zh-CN.md) | Workstation → Instance → Task 三层模型 |
 | [Skills 系统](./docs/concepts/skills_zh-CN.md) | 声明式技能、版本锁定、构建时注入 |

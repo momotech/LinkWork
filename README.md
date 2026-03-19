@@ -242,15 +242,16 @@ LinkWork follows a **phased open-source** strategy, ensuring each component is i
 | Phase 1 | linkwork-server | Backend core with full scheduling engine and demo launcher | Late March 2026 |
 | Phase 2 | linkwork-executor + linkwork-agent-sdk | Execution layer — secure executor + Agent runtime | Late March 2026 |
 | Phase 3 | linkwork-mcp-gateway + linkwork-web | Access layer — MCP tool gateway + frontend reference implementation | End of March 2026 |
+| Phase 4 | Local Docker experience | Single-node / Docker Compose packaging for developer trial and demos | After full OSS release |
 
-> All components are planned to be fully open-sourced before April 1, 2026. Watch this repo for updates.
+> All core components are planned to be fully open-sourced before April 1, 2026. A local Docker experience is planned after that milestone, so the platform can stabilize first before packaging a lightweight trial setup.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Quick Start](./docs/quick-start.md) | Prerequisites, cloning submodules, launching platform services |
-| [Deployment Guide](./docs/guides/deployment.md) | K8s production deployment, Harbor, MySQL, Volcano |
+| [Quick Start](./docs/quick-start.md) | Prerequisites, cloning submodules, and bringing up current open-source components |
+| [Deployment Guide](./docs/guides/deployment.md) | Kubernetes-oriented production deployment, Harbor, MySQL, Volcano |
 | [Extension Guide](./docs/guides/extension.md) | Custom roles, Skills, MCP tools, file management, Git projects |
 | [Workstation Model](./docs/concepts/workstation.md) | Role → Instance → Task model |
 | [Skills System](./docs/concepts/skills.md) | Declarative skills, version pinning, build-time injection |

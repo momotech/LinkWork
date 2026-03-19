@@ -21,7 +21,7 @@ body:
         - linkwork-agent-sdk
         - linkwork-mcp-gateway
         - linkwork-web
-        - Docker Compose / deployment
+        - Local Docker experience / deployment
         - Documentation
         - Other
     validations:
@@ -49,7 +49,7 @@ body:
       label: Steps to Reproduce
       description: Step-by-step instructions to reproduce the issue.
       placeholder: |
-        1. Start with `docker-compose up -d`
+        1. Describe how you started LinkWork (for example: component dev setup, local scripts, or a future local Docker experience)
         2. Create a role via API ...
         3. Trigger a task ...
         4. See error
