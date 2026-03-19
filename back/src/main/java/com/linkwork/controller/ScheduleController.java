@@ -1,6 +1,6 @@
 package com.linkwork.controller;
 
-import com.momo.agent.sandbox.core.model.SandboxResult;
+import com.linkwork.agent.sandbox.core.model.SandboxResult;
 import com.linkwork.common.api.ApiResponse;
 import com.linkwork.model.dto.GeneratedSpec;
 import com.linkwork.model.dto.ScaleRequest;

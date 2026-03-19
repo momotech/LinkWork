@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${LINKWORK_DB_URL:jdbc:mysql://127.0.0.1:3306/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8}
     username: ${LINKWORK_DB_USERNAME:linkwork}
-    password: ${LINKWORK_DB_PASSWORD:changeit}
+    password: ${LINKWORK_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 5
@@ -60,6 +60,21 @@ linkwork:
       client:
         connect-timeout-ms: ${LINKWORK_MCP_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${LINKWORK_MCP_READ_TIMEOUT_MS:10000}
+    sandbox:
+      provider: ${LINKWORK_SANDBOX_PROVIDER:k8s-volcano}
+      k8s:
+        kubeconfig-path: ${KUBECONFIG_PATH:${user.home}/.kube/config}
+        namespace: ${K8S_NAMESPACE:linkwork-dev}
+        scheduler-name: ${K8S_SCHEDULER_NAME:default-scheduler}
+        queue-name: ${K8S_QUEUE_NAME:default}
+        create-pod-group: ${K8S_CREATE_POD_GROUP:false}
+        default-agent-image: ${LINKWORK_K8S_DEFAULT_AGENT_IMAGE:ghcr.io/linkwork/agent-base:latest}
+        default-runner-image: ${LINKWORK_K8S_DEFAULT_RUNNER_IMAGE:ghcr.io/linkwork/runner:latest}
+        default-image-pull-policy: ${LINKWORK_K8S_IMAGE_PULL_POLICY:IfNotPresent}
+        auto-create-image-pull-secret: ${LINKWORK_K8S_AUTO_CREATE_IMAGE_PULL_SECRET:true}
+        registry: ${LINKWORK_BUILD_REGISTRY:registry.example.com/linkwork}
+        registry-username: ${LINKWORK_BUILD_REGISTRY_USERNAME:}
+        registry-password: ${LINKWORK_BUILD_REGISTRY_PASSWORD:}
   skill:
     enabled: true
     provider: multi
@@ -85,21 +100,3 @@ linkwork:
       default-provider: gitlab
       github-enabled: false
       gitlab-enabled: false
-
-momo:
-  agent:
-    sandbox:
-      provider: ${LINKWORK_SANDBOX_PROVIDER:k8s-volcano}
-      k8s:
-        kubeconfig-path: ${KUBECONFIG_PATH:${user.home}/.kube/config}
-        namespace: ${K8S_NAMESPACE:linkwork-dev}
-        scheduler-name: ${K8S_SCHEDULER_NAME:default-scheduler}
-        queue-name: ${K8S_QUEUE_NAME:default}
-        create-pod-group: ${K8S_CREATE_POD_GROUP:false}
-        default-agent-image: ${LINKWORK_K8S_DEFAULT_AGENT_IMAGE:ghcr.io/linkwork/agent-base:latest}
-        default-runner-image: ${LINKWORK_K8S_DEFAULT_RUNNER_IMAGE:ghcr.io/linkwork/runner:latest}
-        default-image-pull-policy: ${LINKWORK_K8S_IMAGE_PULL_POLICY:IfNotPresent}
-        auto-create-image-pull-secret: ${LINKWORK_K8S_AUTO_CREATE_IMAGE_PULL_SECRET:true}
-        registry: ${LINKWORK_BUILD_REGISTRY:registry.example.com/linkwork}
-        registry-username: ${LINKWORK_BUILD_REGISTRY_USERNAME:}
-        registry-password: ${LINKWORK_BUILD_REGISTRY_PASSWORD:}

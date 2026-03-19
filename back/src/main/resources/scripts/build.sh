@@ -12,7 +12,7 @@
 #    1. 校验基础镜像内置依赖 (Python 3.12, Node.js, npm, git, Claude CLI, uv, uvx)
 #    2. 创建基础目录
 #    3. 安装 zzd 二进制 (zzd, zz, gen-key, encrypt-key)
-#    4. 安装 momo-agent-sdk (源码)
+#    4. 安装 linkwork-agent-sdk (源码)
 #    5. 创建 agent 用户 + passwordless sudo
 #    6. 创建 workspace 目录结构
 #   6.1 部署 security.json/mcp.json/skills 到 /opt/agent/ (root:agent 只读)
@@ -47,7 +47,7 @@
 # 构建输入目录（支持两种来源）：
 #   1) 固定目录（推荐）：$BUILD_ASSETS_ROOT
 #      - zzd-binaries/    - zzd, zz, gen-key, encrypt-key
-#      - sdk-source/      - momo-agent-sdk 源码 (含 pyproject.toml + src/)
+#      - sdk-source/      - linkwork-agent-sdk 源码 (含 pyproject.toml + src/)
 #      - start-scripts/   - start-single.sh, start-dual.sh, ai_employee.py
 #   2) 兼容旧路径（若固定目录不存在则回退）：/tmp/*
 #
@@ -74,7 +74,7 @@ readonly ZZD_SOCKET_DIR="/var/run/zzd"
 readonly ZZD_AUDIT_DIR="/var/log/zzd/audit"
 
 # 构建输入根目录（固定目录，可通过环境变量覆盖）
-readonly BUILD_ASSETS_ROOT="${BUILD_ASSETS_ROOT:-/opt/momo-agent-build}"
+readonly BUILD_ASSETS_ROOT="${BUILD_ASSETS_ROOT:-/opt/linkwork-agent-build}"
 readonly LEGACY_TMP_ROOT="/tmp"
 
 # 输入路径（优先固定目录，不存在时回退旧 /tmp 路径）
@@ -290,13 +290,13 @@ install_zzd_binaries() {
     return 0
 }
 
-# 安装 momo-agent-sdk
+# 安装 linkwork-agent-sdk
 install_sdk() {
-    log_info "安装 momo-agent-sdk..."
+    log_info "安装 linkwork-agent-sdk..."
 
     if [[ ! -d "${SDK_SRC}" ]]; then
         log_error "SDK 源码目录不存在: ${SDK_SRC}"
-        log_error "请将 momo-agent-sdk 源码放置到固定目录，或通过 SDK_SRC 指定路径"
+        log_error "请将 linkwork-agent-sdk 源码放置到固定目录，或通过 SDK_SRC 指定路径"
         return 1
     fi
 
@@ -320,7 +320,7 @@ install_sdk() {
         return 1
     }
 
-    log_success "momo-agent-sdk 安装完成"
+    log_success "linkwork-agent-sdk 安装完成"
     return 0
 }
 
@@ -1540,7 +1540,7 @@ main() {
     log_info "清理构建临时文件..."
     rm -rf /tmp/cedar-policies /tmp/cedar-policies-download
 
-    # 仅清理 /tmp 回退路径，避免误删固定资产目录（如 /opt/momo-agent-build）
+    # 仅清理 /tmp 回退路径，避免误删固定资产目录（如 /opt/linkwork-agent-build）
     for cleanup_dir in "${ZZD_BIN_SRC}" "${SDK_SRC}" "${START_SCRIPTS_SRC}"; do
         if [[ "${cleanup_dir}" == /tmp/* ]]; then
             rm -rf "${cleanup_dir}"

@@ -1,8 +1,8 @@
 package com.linkwork.controller;
 
-import com.momo.agent.mcp.core.model.McpDiscoverResponse;
-import com.momo.agent.mcp.core.model.McpProbeResponse;
-import com.momo.agent.mcp.core.model.McpToolCallResponse;
+import com.linkwork.agent.mcp.core.model.McpDiscoverResponse;
+import com.linkwork.agent.mcp.core.model.McpProbeResponse;
+import com.linkwork.agent.mcp.core.model.McpToolCallResponse;
 import com.linkwork.common.api.ApiResponse;
 import com.linkwork.model.dto.McpEndpointRequest;
 import com.linkwork.model.dto.McpToolCallRequest;

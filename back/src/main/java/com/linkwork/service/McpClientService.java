@@ -1,10 +1,10 @@
 package com.linkwork.service;
 
-import com.momo.agent.mcp.core.McpClient;
-import com.momo.agent.mcp.core.model.McpDiscoverResponse;
-import com.momo.agent.mcp.core.model.McpEndpoint;
-import com.momo.agent.mcp.core.model.McpProbeResponse;
-import com.momo.agent.mcp.core.model.McpToolCallResponse;
+import com.linkwork.agent.mcp.core.McpClient;
+import com.linkwork.agent.mcp.core.model.McpDiscoverResponse;
+import com.linkwork.agent.mcp.core.model.McpEndpoint;
+import com.linkwork.agent.mcp.core.model.McpProbeResponse;
+import com.linkwork.agent.mcp.core.model.McpToolCallResponse;
 import com.linkwork.model.dto.McpEndpointRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;

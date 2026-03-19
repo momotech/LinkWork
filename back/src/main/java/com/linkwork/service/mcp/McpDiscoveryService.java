@@ -1,8 +1,8 @@
 package com.linkwork.service.mcp;
 
-import com.momo.agent.mcp.core.McpClient;
-import com.momo.agent.mcp.core.model.McpDiscoverResponse;
-import com.momo.agent.mcp.core.model.McpEndpoint;
+import com.linkwork.agent.mcp.core.McpClient;
+import com.linkwork.agent.mcp.core.model.McpDiscoverResponse;
+import com.linkwork.agent.mcp.core.model.McpEndpoint;
 import com.linkwork.model.mcp.dto.McpDiscoverResult;
 import com.linkwork.model.mcp.McpServerRecord;
 import com.linkwork.model.mcp.McpUserConfigRecord;

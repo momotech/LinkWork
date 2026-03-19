@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.momo.agent.mcp.McpProperties;
+import com.linkwork.agent.mcp.McpProperties;
 import com.linkwork.mapper.mcp.McpServerMapper;
 import com.linkwork.model.mcp.McpServerRecord;
 import org.springframework.stereotype.Service;

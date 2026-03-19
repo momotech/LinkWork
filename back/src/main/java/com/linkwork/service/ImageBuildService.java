@@ -164,12 +164,12 @@ public class ImageBuildService {
         }
 
         sb.append("# Embedded build assets (fallback when sdk repo is not configured)\n");
-        sb.append("RUN mkdir -p /opt/momo-agent-build/zzd-binaries /opt/momo-agent-build/sdk-source /opt/momo-agent-build/start-scripts\n");
-        sb.append("COPY zzd-binaries/ /opt/momo-agent-build/zzd-binaries/\n");
-        sb.append("COPY start-scripts/ /opt/momo-agent-build/start-scripts/\n");
+        sb.append("RUN mkdir -p /opt/linkwork-agent-build/zzd-binaries /opt/linkwork-agent-build/sdk-source /opt/linkwork-agent-build/start-scripts\n");
+        sb.append("COPY zzd-binaries/ /opt/linkwork-agent-build/zzd-binaries/\n");
+        sb.append("COPY start-scripts/ /opt/linkwork-agent-build/start-scripts/\n");
         sb.append("COPY sdk-source.tar.gz /tmp/sdk-source.tar.gz\n");
         sb.append("RUN set -e \\\n");
-        sb.append("    && if [ -s /tmp/sdk-source.tar.gz ]; then tar -xzf /tmp/sdk-source.tar.gz -C /opt/momo-agent-build/sdk-source --strip-components=1; fi \\\n");
+        sb.append("    && if [ -s /tmp/sdk-source.tar.gz ]; then tar -xzf /tmp/sdk-source.tar.gz -C /opt/linkwork-agent-build/sdk-source --strip-components=1; fi \\\n");
         sb.append("    && rm -f /tmp/sdk-source.tar.gz\n\n");
 
         if (StringUtils.hasText(properties.getSdkRepoUrl())) {
@@ -180,12 +180,13 @@ public class ImageBuildService {
                 .append(" ")
                 .append(buildSdkCloneUrl())
                 .append(" /tmp/_sdk_repo \\\n");
-            sb.append("    && mkdir -p /opt/momo-agent-build/zzd-binaries /opt/momo-agent-build/sdk-source /opt/momo-agent-build/start-scripts \\\n");
-            sb.append("    && for bin in zzd zz gen-key encrypt-key; do cp /tmp/_sdk_repo/docker/agent/zzd/$bin /opt/momo-agent-build/zzd-binaries/; done \\\n");
-            sb.append("    && cp -a /tmp/_sdk_repo/momo-agent-sdk/. /opt/momo-agent-build/sdk-source/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh /opt/momo-agent-build/start-scripts/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh /opt/momo-agent-build/start-scripts/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py /opt/momo-agent-build/start-scripts/ \\\n");
+            sb.append("    && mkdir -p /opt/linkwork-agent-build/zzd-binaries /opt/linkwork-agent-build/sdk-source /opt/linkwork-agent-build/start-scripts \\\n");
+            sb.append("    && for bin in zzd zz gen-key encrypt-key; do cp /tmp/_sdk_repo/docker/agent/zzd/$bin /opt/linkwork-agent-build/zzd-binaries/; done \\\n");
+            sb.append("    && if [ ! -d /tmp/_sdk_repo/linkwork-agent-sdk ]; then echo 'sdk source directory not found: linkwork-agent-sdk'; exit 1; fi \\\n");
+            sb.append("    && cp -a /tmp/_sdk_repo/linkwork-agent-sdk/. /opt/linkwork-agent-build/sdk-source/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh /opt/linkwork-agent-build/start-scripts/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh /opt/linkwork-agent-build/start-scripts/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py /opt/linkwork-agent-build/start-scripts/ \\\n");
             sb.append("    && rm -rf /tmp/_sdk_repo\n\n");
         }
 

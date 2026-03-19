@@ -1,8 +1,8 @@
 package com.linkwork.service.mcp;
 
-import com.momo.agent.mcp.core.McpClient;
-import com.momo.agent.mcp.core.model.McpEndpoint;
-import com.momo.agent.mcp.core.model.McpProbeResponse;
+import com.linkwork.agent.mcp.core.McpClient;
+import com.linkwork.agent.mcp.core.model.McpEndpoint;
+import com.linkwork.agent.mcp.core.model.McpProbeResponse;
 import com.linkwork.model.mcp.dto.McpProbeResult;
 import com.linkwork.model.mcp.McpServerRecord;
 import org.springframework.scheduling.annotation.Scheduled;
