@@ -1,0 +1,41 @@
+CREATE TABLE IF NOT EXISTS linkwork_file (
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    file_id              VARCHAR(64)  NOT NULL,
+    file_name            VARCHAR(512) NOT NULL,
+    file_size            BIGINT       DEFAULT NULL,
+    file_type            VARCHAR(32)  DEFAULT NULL,
+    content_type         VARCHAR(128) DEFAULT NULL,
+    space_type           VARCHAR(20)  NOT NULL,
+    workstation_id       VARCHAR(64)  DEFAULT NULL,
+    user_id              VARCHAR(64)  DEFAULT NULL,
+    oss_path             VARCHAR(1024) DEFAULT NULL,
+    parsed_oss_path      VARCHAR(1024) DEFAULT NULL,
+    parse_status         VARCHAR(16)  NOT NULL DEFAULT 'NONE',
+    memory_index_status  VARCHAR(16)  NOT NULL DEFAULT 'NONE',
+    file_hash            VARCHAR(128) DEFAULT NULL,
+    created_at           DATETIME     DEFAULT NULL,
+    updated_at           DATETIME     DEFAULT NULL,
+    deleted_at           DATETIME     DEFAULT NULL,
+    UNIQUE INDEX uk_file_id       (file_id),
+    INDEX idx_file_user_space     (user_id, space_type, workstation_id),
+    INDEX idx_file_oss_path       (oss_path(255))
+);
+
+CREATE TABLE IF NOT EXISTS linkwork_file_node (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    node_id          VARCHAR(64)  NOT NULL,
+    parent_id        VARCHAR(64)  DEFAULT NULL,
+    entry_type       VARCHAR(10)  NOT NULL,
+    name             VARCHAR(512) NOT NULL,
+    space_type       VARCHAR(20)  NOT NULL,
+    workstation_id   VARCHAR(64)  DEFAULT NULL,
+    user_id          VARCHAR(64)  DEFAULT NULL,
+    file_id          VARCHAR(64)  DEFAULT NULL,
+    created_at       DATETIME     DEFAULT NULL,
+    updated_at       DATETIME     DEFAULT NULL,
+    deleted_at       DATETIME     DEFAULT NULL,
+    UNIQUE INDEX uk_node_id           (node_id),
+    INDEX idx_node_parent             (parent_id),
+    INDEX idx_node_user_space         (user_id, space_type, workstation_id),
+    INDEX idx_node_file_id            (file_id)
+);
