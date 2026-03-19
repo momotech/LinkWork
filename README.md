@@ -38,6 +38,27 @@ Not a chatbot. Not a personal assistant. An **enterprise-grade system for runnin
 
 > Before paying AI a salary, give it a role, a skill set, and a security policy.
 
+## Why LinkWork
+
+Most AI products stop at assistance: they answer questions, generate content, or help with drafts. LinkWork is built for teams that need AI to go one step further — to **execute work safely, repeatedly, and under governance**.
+
+What makes it different:
+
+- **From one assistant to many workers** — run multiple AI workers with clear responsibilities instead of overloading one general-purpose agent
+- **From chat to execution** — connect AI to tools, workflows, repositories, and scheduled jobs so it can produce outcomes, not just responses
+- **From prompts to governance** — define roles, permissions, approval rules, and audit trails before AI touches real systems
+- **From demos to production** — use container isolation, K8s scheduling, and delivery-oriented task flows to support real enterprise workloads
+
+## Typical Use Cases
+
+Teams can use LinkWork to build AI workers for scenarios such as:
+
+- **Engineering** — code generation, code review, repository tasks, release workflows
+- **Operations** — scheduled inspections, incident triage, environment checks, routine automation
+- **Support & service** — internal knowledge assistance, ticket handling, workflow routing
+- **Research & analysis** — information gathering, reporting, structured synthesis, recurring monitoring
+- **Cross-functional workflows** — connecting people, tools, approvals, and AI workers in one controlled system
+
 ## Core Design Philosophy
 
 ### Every AI Worker Is a Containerized Service
