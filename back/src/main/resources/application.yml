@@ -46,6 +46,21 @@ llm-gateway:
   url: ${LLM_GATEWAY_URL:http://llm-gateway:8080}
 
 linkwork:
+  dispatch:
+    default-workstation-id: ${LINKWORK_DEFAULT_WS:default}
+    log-stream-prefix: logs
+    approval-key-prefix: approval
+  cron:
+    enabled: ${LINKWORK_CRON_ENABLED:true}
+    scan-interval-ms: 60000
+    dispatch-lead-ms: 180000
+    max-jobs-per-user: 50
+    max-jobs-per-workstation: 100
+    max-runs-per-job: 100
+    lock-key: lock:cron:scanner
+    lock-ttl-seconds: 55
+  task-event-consumer:
+    scan-interval-ms: 5000
   skill:
     enabled: true
     provider: multi
@@ -71,4 +86,3 @@ linkwork:
       default-provider: gitlab
       github-enabled: false
       gitlab-enabled: false
-

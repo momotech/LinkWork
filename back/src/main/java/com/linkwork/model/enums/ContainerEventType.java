@@ -1,0 +1,23 @@
+package com.linkwork.model.enums;
+
+public enum ContainerEventType {
+    POD_SCHEDULING,
+    POD_SCHEDULED,
+    IMAGE_PULLING,
+    IMAGE_PULLED,
+    CONTAINER_STARTING,
+    CONTAINER_READY,
+    ENV_SETUP,
+    WORKSPACE_INIT,
+    INIT_COMPLETE,
+    INIT_FAILED,
+    SESSION_START,
+    SESSION_END,
+    BUILD_STARTED,
+    BUILD_PROGRESS,
+    BUILD_LOG,
+    BUILD_COMPLETED,
+    BUILD_FAILED,
+    BUILD_PUSHING,
+    BUILD_PUSHED
+}
