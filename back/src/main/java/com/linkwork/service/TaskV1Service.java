@@ -77,6 +77,10 @@ public class TaskV1Service {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("modelId", request.getModelId());
         configMap.put("image", task.getImage());
+        if (StringUtils.hasText(role.getPrompt())) {
+            configMap.put("rolePrompt", role.getPrompt().trim());
+            configMap.put("systemPromptAppend", role.getPrompt().trim());
+        }
         TaskRuntimeProfile roleRuntime = resolveRoleRuntimeProfile(role);
         configMap.put("runtimeMode", roleRuntime.runtimeMode());
         configMap.put("zzMode", roleRuntime.zzMode());
@@ -308,14 +312,22 @@ public class TaskV1Service {
     private void pushToDispatchQueue(LinkworkTask task) {
         try {
             String queueKey = dispatchConfig.getTaskQueueKey(task.getWorkstationId());
+            Map<String, Object> taskConfig = parseTaskConfig(task.getConfigJson());
+            List<Map<String, String>> gitConfig = extractGitConfig(taskConfig);
+            String deliveryMode = gitConfig.isEmpty() ? "oss" : "git";
+
             Map<String, Object> msg = new HashMap<>();
             msg.put("task_id", task.getTaskNo());
             msg.put("user_id", StringUtils.hasText(task.getCreatorId()) ? task.getCreatorId() : "system");
             msg.put("content", task.getPrompt());
+            msg.put("system_prompt_append", resolveSystemPromptAppend(task, taskConfig));
+            msg.put("delivery_mode", deliveryMode);
+            msg.put("git_config", gitConfig);
             msg.put("source", task.getSource());
             msg.put("cron_job_id", task.getCronJobId());
             if (task.getWorkstationId() != null) {
                 msg.put("workstation_id", String.valueOf(task.getWorkstationId()));
+                msg.put("role_id", String.valueOf(task.getWorkstationId()));
             }
             String json = objectMapper.writeValueAsString(msg);
             redisTemplate.opsForList().rightPush(queueKey, json);
@@ -453,6 +465,109 @@ public class TaskV1Service {
             }
         }
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseTaskConfig(String rawConfig) {
+        if (!StringUtils.hasText(rawConfig)) {
+            return new HashMap<>();
+        }
+        try {
+            Object parsed = objectMapper.readValue(rawConfig, Object.class);
+            if (parsed instanceof Map<?, ?> map) {
+                Map<String, Object> result = new HashMap<>();
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+                return result;
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse task config for dispatch: {}", e.getMessage());
+        }
+        return new HashMap<>();
+    }
+
+    private String resolveSystemPromptAppend(LinkworkTask task, Map<String, Object> configMap) {
+        String prompt = firstNonBlank(
+                readText(configMap, "systemPromptAppend"),
+                readText(configMap, "system_prompt_append"),
+                readText(configMap, "rolePrompt"),
+                readText(configMap, "role_prompt"));
+        if (StringUtils.hasText(prompt)) {
+            return prompt;
+        }
+
+        if (task.getWorkstationId() != null) {
+            RoleRecord role = roleService.getById(task.getWorkstationId());
+            if (role != null && StringUtils.hasText(role.getPrompt())) {
+                return role.getPrompt().trim();
+            }
+        }
+        return "You are a LinkWork execution agent.";
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, String>> extractGitConfig(Map<String, Object> configMap) {
+        List<Map<String, String>> gitConfig = convertGitReposToDispatch(configMap.get("gitRepos"));
+        if (!gitConfig.isEmpty()) {
+            return gitConfig;
+        }
+        Object customRaw = configMap.get("custom");
+        if (!(customRaw instanceof Map<?, ?> customMap)) {
+            return List.of();
+        }
+        Map<String, Object> custom = new HashMap<>();
+        for (Map.Entry<?, ?> entry : customMap.entrySet()) {
+            custom.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        gitConfig = convertGitReposToDispatch(custom.get("gitRepos"));
+        if (!gitConfig.isEmpty()) {
+            return gitConfig;
+        }
+        return convertGitReposToDispatch(custom.get("git_config"));
+    }
+
+    private List<Map<String, String>> convertGitReposToDispatch(Object rawGitRepos) {
+        if (!(rawGitRepos instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, String>> result = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            String repo = firstNonBlank(
+                    textOf(map.get("repo")),
+                    textOf(map.get("url")));
+            String originBranch = firstNonBlank(
+                    textOf(map.get("origin_branch")),
+                    textOf(map.get("originBranch")),
+                    textOf(map.get("branch")));
+            if (!StringUtils.hasText(repo) || !StringUtils.hasText(originBranch)) {
+                continue;
+            }
+
+            Map<String, String> normalized = new HashMap<>();
+            normalized.put("repo", repo.trim());
+            normalized.put("origin_branch", originBranch.trim());
+
+            String taskBranch = firstNonBlank(
+                    textOf(map.get("task_branch")),
+                    textOf(map.get("taskBranch")));
+            if (StringUtils.hasText(taskBranch)) {
+                normalized.put("task_branch", taskBranch.trim());
+            }
+            result.add(normalized);
+        }
+        return result;
+    }
+
+    private String textOf(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String text = String.valueOf(raw).trim();
+        return StringUtils.hasText(text) ? text : null;
     }
 
     private record TaskRuntimeProfile(String runtimeMode, String zzMode, String runnerImage) {}
