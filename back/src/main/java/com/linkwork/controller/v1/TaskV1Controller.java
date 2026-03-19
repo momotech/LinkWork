@@ -45,12 +45,12 @@ public class TaskV1Controller {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> listTasks(
-            @RequestParam(required = false) Long workstationId,
+            @RequestParam(required = false) Long roleId,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize) {
         String userId = UserContext.getCurrentUserId();
-        Page<LinkworkTask> result = taskService.listTasks(workstationId, status, page, pageSize, userId);
+        Page<LinkworkTask> result = taskService.listTasks(roleId, status, page, pageSize, userId);
         List<TaskResponse> items = taskService.toResponseList(result.getRecords());
 
         Map<String, Object> pagination = Map.of(
