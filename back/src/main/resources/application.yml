@@ -52,14 +52,29 @@ linkwork:
     sdk-repo-password: ${LINKWORK_BUILD_SDK_REPO_PASSWORD:}
   agent:
     mcp:
-      enabled: ${LINKWORK_MCP_ENABLED:true}
-      mode: ${LINKWORK_MCP_MODE:gateway}
+      enabled: ${LINKWORK_AGENT_MCP_ENABLED:true}
+      mode: ${LINKWORK_AGENT_MCP_MODE:gateway}
       gateway:
-        proxy-base-url: ${MCP_PROXY_BASE_URL:http://mcp-proxy-service:8080}
-        agent-base-url: ${MCP_GATEWAY_AGENT_BASE_URL:http://host.docker.internal:8080}
+        proxy-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_PROXY_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
+        agent-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_AGENT_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
       client:
-        connect-timeout-ms: ${LINKWORK_MCP_CONNECT_TIMEOUT_MS:3000}
-        read-timeout-ms: ${LINKWORK_MCP_READ_TIMEOUT_MS:10000}
+        connect-timeout-ms: ${LINKWORK_AGENT_MCP_CONNECT_TIMEOUT_MS:3000}
+        read-timeout-ms: ${LINKWORK_AGENT_MCP_READ_TIMEOUT_MS:10000}
+    sandbox:
+      provider: ${LINKWORK_SANDBOX_PROVIDER:k8s-volcano}
+      k8s:
+        kubeconfig-path: ${KUBECONFIG_PATH:${user.home}/.kube/config}
+        namespace: ${K8S_NAMESPACE:linkwork-dev}
+        scheduler-name: ${K8S_SCHEDULER_NAME:default-scheduler}
+        queue-name: ${K8S_QUEUE_NAME:default}
+        create-pod-group: ${K8S_CREATE_POD_GROUP:false}
+        default-agent-image: ${LINKWORK_K8S_DEFAULT_AGENT_IMAGE:ghcr.io/linkwork/agent-base:latest}
+        default-runner-image: ${LINKWORK_K8S_DEFAULT_RUNNER_IMAGE:ghcr.io/linkwork/runner:latest}
+        default-image-pull-policy: ${LINKWORK_K8S_IMAGE_PULL_POLICY:IfNotPresent}
+        auto-create-image-pull-secret: ${LINKWORK_K8S_AUTO_CREATE_IMAGE_PULL_SECRET:true}
+        registry: ${LINKWORK_BUILD_REGISTRY:registry.example.com/linkwork}
+        registry-username: ${LINKWORK_BUILD_REGISTRY_USERNAME:}
+        registry-password: ${LINKWORK_BUILD_REGISTRY_PASSWORD:}
   skill:
     enabled: true
     provider: multi
