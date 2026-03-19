@@ -1,6 +1,7 @@
 <div align="center">
+<img src="./assets/logo.png" alt="LinkWork Logo" width="100">
 
-# 🪢 LinkWork
+# 灵工（LinkWork）
 
 ### 让 AI 像员工一样工作
 
@@ -8,13 +9,18 @@
 
 [English](./README.md) | 中文
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/momotech/LinkWork)](https://github.com/momotech/LinkWork/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/momotech/LinkWork)](https://github.com/momotech/LinkWork/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+
 </div>
 
 ---
 
 ## 这是什么
 
-LinkWork 是一个开源的 **AI 员工平台**。
+LinkWork 是一个开源的企业级 **AI Agent 平台**，在 **Kubernetes** 上编排容器化的 AI 劳动力。声明式定义岗位、装配技能、接入 **MCP**（Model Context Protocol）工具、执行安全策略 — 让多 Agent 团队在隔离容器中自主运行。
 
 你可以像经营一家公司一样管理 AI：设立**岗位**，为每个岗位装配**技能**，授权可用的**工具**，设定**安全策略**，安排**计划任务** — 然后让 AI 员工在各自独立的容器中 7x24 运行，实时追踪进度，高风险操作自动拦截审批。
 
@@ -64,7 +70,6 @@ LinkWork 将 AI 能力拆解为三层可治理的模块，像 App Store 一样�
 - **镜像工厂** — 自动构建、安全扫描，每个岗位镜像可追溯、可复现
 - **Skills 工厂** — 在线编辑、版本管理、团队共享与使用统计
 - **MCP 工厂** — 工具注册与发现、健康检查、鉴权与用量统计
-- **RAG 文档中心** — 文档自动解析、语义检索，为 AI 员工构建可检索的长期知识库
 
 ## 核心能力
 
@@ -180,7 +185,7 @@ OpenClaw 等项目是优秀的个人 AI 助手 — 跑在你的笔记本上，�
 | **运行环境** | 本地单机 | K8s 集群，容器隔离 |
 | **能力管理** | 社区插件，自由安装 | 岗位 → Skills → 工具，三层治理 |
 | **安全** | 依赖用户自觉 | 审批流 + 策略引擎 + 审计 |
-| **部署** | `npm install -g` | Docker Compose / K8s |
+| **部署** | `npm install -g` | K8s |
 | **Skills 复用** | 个人积累，难以共享 | 个人验证的 Skills 可直接迁入，团队共享、稳定执行 |
 
 > 个人助手解决"我的效率"，LinkWork 解决"组织的效能"。你在个人工具上打磨好的 Skills，可以直接放进 LinkWork，变成整个团队都能用的标准化能力。
@@ -206,6 +211,22 @@ LinkWork 采用**分批开源**策略，确保每个组件独立可用、文档�
 | 第三批 | linkwork-mcp-gateway + linkwork-web | 接入层 — MCP 工具网关 + 前端参考实现 | 2026 年 3 月底 |
 
 > 计划于 2026 年 4 月 1 日前完成全部组件开源。关注本仓库获取最新动态。
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [快速开始](./docs/quick-start_zh-CN.md) | 前提条件、拉取子项目、启动平台服务 |
+| [部署指南](./docs/guides/deployment_zh-CN.md) | K8s 生产部署、Harbor、MySQL、Volcano |
+| [扩展开发](./docs/guides/extension_zh-CN.md) | 自定义岗位、Skills、MCP 工具、文件管理、Git 项目 |
+| [岗位模型](./docs/concepts/workstation_zh-CN.md) | Workstation → Instance → Task 三层模型 |
+| [Skills 系统](./docs/concepts/skills_zh-CN.md) | 声明式技能、版本锁定、构建时注入 |
+| [MCP 工具](./docs/concepts/mcp-tools_zh-CN.md) | 标准化外部能力接入 |
+| [Harness Engineering](./docs/concepts/harness-engineering_zh-CN.md) | 一岗位一镜像 |
+| [系统架构总览](./docs/architecture/overview_zh-CN.md) | 系统上下文、组件关系、技术栈 |
+| [示例：文献追踪员](./docs/examples/literature-tracker_zh-CN.md) | 完整岗位配置案例 |
+
+> 完整文档索引：[docs/README_zh-CN.md](./docs/README_zh-CN.md)
 
 ## 许可证
 
