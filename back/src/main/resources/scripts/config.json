@@ -1,6 +1,6 @@
 {
   "claude_settings": {
-    "model": "openrouter/deepseek/deepseek-v3.2",
+    "model": "opus",
     "language": "Chinese",
     "env": {
       "ANTHROPIC_BASE_URL": "http://172.18.228.32:4000/",
