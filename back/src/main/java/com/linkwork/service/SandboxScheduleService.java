@@ -1,5 +1,6 @@
 package com.linkwork.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkwork.agent.sandbox.core.SandboxOrchestrator;
@@ -24,9 +25,11 @@ import com.linkwork.model.dto.ServiceBuildRequest;
 import com.linkwork.model.dto.ServiceBuildResult;
 import com.linkwork.model.dto.ServiceStatusResponse;
 import com.linkwork.model.dto.VolumeMountRequest;
-import com.linkwork.service.mcp.McpServerService;
 import com.linkwork.model.enums.DeployMode;
 import com.linkwork.model.enums.PodMode;
+import com.linkwork.model.mcp.McpServerRecord;
+import com.linkwork.model.role.RoleRecord;
+import com.linkwork.service.mcp.McpServerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -55,6 +58,7 @@ public class SandboxScheduleService {
     private final ImageBuildService imageBuildService;
     private final ImageBuildProperties imageBuildProperties;
     private final NfsStorageConfig nfsStorageConfig;
+    private final RoleService roleService;
     private final McpServerService mcpServerService;
     private final ObjectMapper objectMapper;
     private volatile String cachedDefaultAgentConfig;
@@ -64,12 +68,14 @@ public class SandboxScheduleService {
                                   ImageBuildService imageBuildService,
                                   ImageBuildProperties imageBuildProperties,
                                   NfsStorageConfig nfsStorageConfig,
+                                  RoleService roleService,
                                   McpServerService mcpServerService,
                                   ObjectMapper objectMapper) {
         this.sandboxOrchestrator = sandboxOrchestrator;
         this.imageBuildService = imageBuildService;
         this.imageBuildProperties = imageBuildProperties;
         this.nfsStorageConfig = nfsStorageConfig;
+        this.roleService = roleService;
         this.mcpServerService = mcpServerService;
         this.objectMapper = objectMapper;
     }
@@ -243,61 +249,129 @@ public class SandboxScheduleService {
     }
 
     private void injectMcpConfig(ServiceBuildRequest request) {
-        if (request == null || request.getBuildEnvVars() == null) {
-            return;
-        }
-        Object existing = request.getBuildEnvVars().get("MCP_CONFIG");
-        if (existing instanceof String existingConfig && StringUtils.hasText(existingConfig)) {
+        if (request == null) {
             return;
         }
 
-        List<String> refs = extractMcpRefs(request);
+        Long roleId = request.getRoleId();
+        if (roleId == null) {
+            log.debug("No roleId provided, skipping MCP config injection");
+            return;
+        }
+
+        RoleRecord role = roleService.getById(roleId);
+        if (role == null) {
+            log.debug("Role not found for roleId: {}, skipping MCP config injection", roleId);
+            return;
+        }
+
+        List<String> refs = extractRoleMcpRefs(role);
         if (refs.isEmpty()) {
+            log.debug("No MCP refs configured for role {}, skipping MCP config injection", roleId);
             return;
         }
 
-        List<Long> ids = mcpServerService.resolveIdsByRefs(refs);
+        List<Long> ids = resolveMcpIds(roleId, refs);
         if (ids.isEmpty()) {
-            throw new IllegalArgumentException("No valid MCP server found from refs: " + refs);
+            throw new IllegalArgumentException(
+                String.format("Role [%d] configured MCP refs cannot be resolved: %s", roleId, refs));
         }
 
         Map<String, Object> mcpConfig = mcpServerService.generateMcpConfig(ids);
         try {
-            request.getBuildEnvVars().put("MCP_CONFIG", objectMapper.writeValueAsString(mcpConfig));
+            Map<String, Object> envVars = request.getBuildEnvVars();
+            if (envVars == null) {
+                envVars = new LinkedHashMap<>();
+                request.setBuildEnvVars(envVars);
+            }
+            envVars.put("MCP_CONFIG", objectMapper.writeValueAsString(mcpConfig));
+            log.info("Injected MCP config for roleId: {} ({} servers, resolved from {} refs)",
+                roleId, ids.size(), refs.size());
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Failed to serialize MCP_CONFIG: " + ex.getMessage(), ex);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private List<String> extractMcpRefs(ServiceBuildRequest request) {
-        if (request.getMcpRefs() != null && !request.getMcpRefs().isEmpty()) {
-            return request.getMcpRefs().stream()
-                .filter(StringUtils::hasText)
-                .toList();
+    private List<String> extractRoleMcpRefs(RoleRecord role) {
+        if (role == null || role.getConfigJson() == null) {
+            return List.of();
+        }
+        return toRefList(role.getConfigJson().get("mcp"));
+    }
+
+    private List<String> toRefList(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        List<String> refs = new ArrayList<>();
+        if (raw instanceof List<?> list) {
+            for (Object item : list) {
+                if (item == null) {
+                    continue;
+                }
+                if (item instanceof Map<?, ?> map) {
+                    String id = asString(map.get("id"));
+                    String name = asString(map.get("name"));
+                    if (StringUtils.hasText(id)) {
+                        refs.add(id.trim());
+                    } else if (StringUtils.hasText(name)) {
+                        refs.add(name.trim());
+                    }
+                    continue;
+                }
+                String text = String.valueOf(item).trim();
+                if (StringUtils.hasText(text)) {
+                    refs.add(text);
+                }
+            }
+            return refs;
         }
 
-        Object rawRefs = request.getBuildEnvVars().get("MCP_REFS");
-        if (rawRefs instanceof List<?> list) {
-            List<String> refs = new ArrayList<>();
-            for (Object item : list) {
-                if (item != null && StringUtils.hasText(String.valueOf(item))) {
-                    refs.add(String.valueOf(item));
-                }
-            }
-            return refs;
+        String text = String.valueOf(raw).trim();
+        if (StringUtils.hasText(text)) {
+            refs.add(text);
         }
-        if (rawRefs instanceof String str && StringUtils.hasText(str)) {
-            String[] parts = str.split(",");
-            List<String> refs = new ArrayList<>();
-            for (String part : parts) {
-                if (StringUtils.hasText(part)) {
-                    refs.add(part.trim());
-                }
+        return refs;
+    }
+
+    private List<Long> resolveMcpIds(Long roleId, List<String> refs) {
+        List<Long> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+
+        for (String ref : refs) {
+            if (!StringUtils.hasText(ref)) {
+                continue;
             }
-            return refs;
+            try {
+                ids.add(Long.parseLong(ref));
+            } catch (NumberFormatException ex) {
+                names.add(ref);
+            }
         }
-        return List.of();
+
+        if (!names.isEmpty()) {
+            LambdaQueryWrapper<McpServerRecord> byName = new LambdaQueryWrapper<>();
+            byName.in(McpServerRecord::getName, names);
+            List<McpServerRecord> byNames = mcpServerService.list(byName);
+            for (McpServerRecord record : byNames) {
+                ids.add(record.getId());
+            }
+            if (byNames.size() < names.size()) {
+                List<String> foundNames = byNames.stream().map(McpServerRecord::getName).toList();
+                List<String> missingNames = names.stream().filter(name -> !foundNames.contains(name)).toList();
+                throw new IllegalArgumentException(
+                    String.format("Role [%d] configured MCP names not found: %s", roleId, missingNames));
+            }
+        }
+
+        return ids.stream().distinct().toList();
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return String.valueOf(value);
     }
 
     private SandboxSpec toSandboxSpec(ServiceBuildRequest request) {
