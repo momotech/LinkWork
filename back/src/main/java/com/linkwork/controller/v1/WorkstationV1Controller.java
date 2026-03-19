@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/workstations")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class WorkstationV1Controller {
 

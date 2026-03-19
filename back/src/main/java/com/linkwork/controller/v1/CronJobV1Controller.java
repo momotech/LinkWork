@@ -15,7 +15,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/cron-jobs")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class CronJobV1Controller {
 
