@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -29,8 +30,8 @@ public class TaskV1Controller {
     public ResponseEntity<Map<String, Object>> createTask(
             @Valid @RequestBody TaskCreateRequest request,
             HttpServletRequest servletRequest) {
-        String userId = UserContext.getCurrentUserId();
-        String username = UserContext.getCurrentUserName();
+        String userId = resolveUserId(servletRequest);
+        String username = resolveUserName(servletRequest);
         String ip = servletRequest.getRemoteAddr();
 
         LinkworkTask task = taskService.createTask(request, userId, username, ip, "MANUAL", null);
@@ -89,5 +90,29 @@ public class TaskV1Controller {
         TaskStatus status = TaskStatus.valueOf(body.get("status").toUpperCase());
         LinkworkTask task = taskService.updateStatus(taskNo, status);
         return ResponseEntity.ok(Map.of("code", 0, "data", taskService.toResponse(task)));
+    }
+
+    private String resolveUserId(HttpServletRequest request) {
+        String userId = UserContext.getCurrentUserId();
+        if (StringUtils.hasText(userId)) {
+            return userId;
+        }
+        String header = request.getHeader("X-User-Id");
+        if (StringUtils.hasText(header)) {
+            return header;
+        }
+        return "anonymous";
+    }
+
+    private String resolveUserName(HttpServletRequest request) {
+        String userName = UserContext.getCurrentUserName();
+        if (StringUtils.hasText(userName)) {
+            return userName;
+        }
+        String header = request.getHeader("X-User-Name");
+        if (StringUtils.hasText(header)) {
+            return header;
+        }
+        return "anonymous";
     }
 }
