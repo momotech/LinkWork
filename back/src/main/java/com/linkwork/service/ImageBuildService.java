@@ -1,7 +1,9 @@
 package com.linkwork.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linkwork.config.ImageBuildProperties;
 import com.linkwork.model.dto.ImageBuildResult;
 import com.linkwork.model.dto.ServiceBuildRequest;
@@ -264,13 +266,46 @@ public class ImageBuildService {
     private void copyConfigJson(Path contextDir) throws IOException {
         Path target = contextDir.resolve("config.json");
         ClassPathResource resource = new ClassPathResource("scripts/config.json");
+        String configContent = "{}";
         if (resource.exists()) {
             try (InputStream inputStream = resource.getInputStream()) {
-                Files.copy(inputStream, target);
-                return;
+                configContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             }
         }
-        Files.writeString(target, "{}", StandardCharsets.UTF_8);
+        Files.writeString(target, applyAnthropicBaseUrl(configContent), StandardCharsets.UTF_8);
+    }
+
+    private String applyAnthropicBaseUrl(String rawConfig) {
+        if (!StringUtils.hasText(rawConfig)) {
+            return "{}";
+        }
+        String anthropicBaseUrl = properties.getAnthropicBaseUrl();
+        if (!StringUtils.hasText(anthropicBaseUrl)) {
+            return rawConfig;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(rawConfig);
+            if (!(root instanceof ObjectNode rootObj)) {
+                return rawConfig;
+            }
+            ObjectNode claudeSettings = ensureObjectNode(rootObj, "claude_settings");
+            ObjectNode envNode = ensureObjectNode(claudeSettings, "env");
+            envNode.put("ANTHROPIC_BASE_URL", anthropicBaseUrl.trim());
+            return objectMapper.writeValueAsString(rootObj);
+        } catch (Exception ex) {
+            log.warn("Failed to apply anthropic base url in config.json, fallback to raw config: {}", ex.getMessage());
+            return rawConfig;
+        }
+    }
+
+    private ObjectNode ensureObjectNode(ObjectNode parent, String fieldName) {
+        JsonNode node = parent.get(fieldName);
+        if (node instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(fieldName, created);
+        return created;
     }
 
     private void copyCedarPolicy(Path contextDir) throws IOException {

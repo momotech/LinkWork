@@ -2,7 +2,9 @@ package com.linkwork.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linkwork.agent.sandbox.core.SandboxOrchestrator;
 import com.linkwork.agent.sandbox.core.model.SandboxMode;
 import com.linkwork.agent.sandbox.core.model.SandboxNaming;
@@ -680,7 +682,8 @@ public class SandboxScheduleService {
             return request.getAgentConfigJson();
         }
         if (cachedDefaultAgentConfig == null) {
-            cachedDefaultAgentConfig = loadClasspathResource(DEFAULT_AGENT_CONFIG_PATH, "{}");
+            String raw = loadClasspathResource(DEFAULT_AGENT_CONFIG_PATH, "{}");
+            cachedDefaultAgentConfig = applyAnthropicBaseUrl(raw);
         }
         return cachedDefaultAgentConfig;
     }
@@ -708,5 +711,38 @@ public class SandboxScheduleService {
             log.warn("Failed to load classpath resource {}, fallback will be used: {}", path, ex.getMessage());
             return fallbackValue;
         }
+    }
+
+    private String applyAnthropicBaseUrl(String rawConfig) {
+        if (!StringUtils.hasText(rawConfig)) {
+            return "{}";
+        }
+        String anthropicBaseUrl = imageBuildProperties == null ? null : imageBuildProperties.getAnthropicBaseUrl();
+        if (!StringUtils.hasText(anthropicBaseUrl)) {
+            return rawConfig;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(rawConfig);
+            if (!(root instanceof ObjectNode rootObj)) {
+                return rawConfig;
+            }
+            ObjectNode claudeSettings = ensureObjectNode(rootObj, "claude_settings");
+            ObjectNode envNode = ensureObjectNode(claudeSettings, "env");
+            envNode.put("ANTHROPIC_BASE_URL", anthropicBaseUrl.trim());
+            return objectMapper.writeValueAsString(rootObj);
+        } catch (Exception ex) {
+            log.warn("Failed to apply anthropic base url in default agent config: {}", ex.getMessage());
+            return rawConfig;
+        }
+    }
+
+    private ObjectNode ensureObjectNode(ObjectNode parent, String fieldName) {
+        JsonNode node = parent.get(fieldName);
+        if (node instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(fieldName, created);
+        return created;
     }
 }
