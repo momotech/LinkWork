@@ -299,6 +299,9 @@ public class TaskService {
             if (task.getRoleId() != null) {
                 message.put("role_id", String.valueOf(task.getRoleId()));
             }
+            if (StringUtils.hasText(task.getSelectedModel())) {
+                message.put("selected_model", task.getSelectedModel().trim());
+            }
 
             List<Map<String, String>> gitConfig = buildDispatchGitConfig(task);
             String deliveryMode = resolveDispatchDeliveryMode(task, gitConfig);
@@ -764,7 +767,7 @@ public class TaskService {
         response.setImage(task.getImage());
         response.setSelectedModel(task.getSelectedModel());
         response.setCreator(task.getCreatorName());
-        response.setCreatedAt(task.getCreatedAt());
+        response.setCreatedAt(task.getCreatedAt() != null ? task.getCreatedAt().toString() : null);
 
         // 构建 Usage
         TaskResponse.Usage usage = new TaskResponse.Usage();
