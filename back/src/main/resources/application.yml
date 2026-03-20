@@ -13,9 +13,9 @@ spring:
 
   # MySQL 数据库配置
   datasource:
-    url: jdbc:mysql://host.docker.internal:3307/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
-    username: robot
-    password: ${MYSQL_PASSWORD:}
+    url: ${LINKWORK_DB_URL:jdbc:mysql://host.docker.internal:3307/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    username: ${LINKWORK_DB_USERNAME:robot}
+    password: ${LINKWORK_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 5
@@ -26,8 +26,9 @@ spring:
   # Redis 配置（通过 Docker 网络直连 momo-redis 容器）
   data:
     redis:
-      host: momo-redis
-      port: 6379
+      host: ${LINKWORK_REDIS_HOST:momo-redis}
+      port: ${LINKWORK_REDIS_PORT:6379}
+      password: ${LINKWORK_REDIS_PASSWORD:}
 
 # MyBatis Plus 配置
 mybatis-plus:
@@ -166,7 +167,8 @@ schedule:
     api-base-url: http://api-gateway.ai-worker.svc:8080
     ws-base-url: ws://ws-gateway.ai-worker.svc:8080
     llm-gateway-url: http://llm-gateway.ai-worker.svc:8080
-    redis-url: ${REDIS_URL:redis://10.136.55.3:6379}
+    # 默认与 spring.data.redis 同源，避免后端入队和 worker 消费落到不同 Redis
+    redis-url: ${REDIS_URL:redis://${LINKWORK_REDIS_HOST:momo-redis}:${LINKWORK_REDIS_PORT:6379}}
   
   ssh:
     port: 22
@@ -249,14 +251,28 @@ image-build:
   
   # 构建上下文临时目录
   build-context-dir: ${BUILD_CONTEXT_DIR:/tmp/docker-build}
+
+  # 本地镜像同步（K8s + imageRegistry 为空时，将镜像导入 Kind 节点）
+  auto-load-to-kind: ${LINKWORK_BUILD_LOCAL_LOAD_ENABLED:${IMAGE_AUTO_LOAD_TO_KIND:true}}
+  # Kind 集群名（为空则自动发现）
+  kind-cluster-name: ${LINKWORK_BUILD_KIND_CLUSTER_NAME:${KIND_CLUSTER_NAME:}}
+  # Kind 导入超时（秒）
+  kind-load-timeout: ${KIND_LOAD_TIMEOUT:600}
+
+  # 定期清理
+  local-cleanup-enabled: ${IMAGE_LOCAL_CLEANUP_ENABLED:true}
+  local-image-retention-hours: ${IMAGE_LOCAL_RETENTION_HOURS:24}
+  local-cleanup-cron: ${IMAGE_LOCAL_CLEANUP_CRON:0 40 * * * *}
+  kind-prune-enabled: ${IMAGE_KIND_PRUNE_ENABLED:true}
   
-  # SDK 仓库配置（镜像构建阶段克隆，拷贝 momo-agent-sdk 和 docker/agent/zzd 到镜像中）
+  # SDK 仓库配置（镜像构建阶段克隆，拷贝 linkwork-agent-sdk 和 docker/agent/zzd 到镜像中）
   sdk-repo-url: ${SDK_REPO_URL:}
+  asset-source-image: ${IMAGE_BUILD_ASSET_SOURCE_IMAGE:}
   sdk-repo-branch: ${SDK_REPO_BRANCH:}
   sdk-repo-username: ${SDK_REPO_USERNAME:}
   sdk-repo-password: ${SDK_REPO_PASSWORD:}
-  sdk-source-path: ${SDK_SOURCE_PATH:/opt/momo-agent-build/sdk-source}
-  zzd-binaries-path: ${ZZD_BINARIES_PATH:/opt/momo-agent-build/zzd-binaries}
+  sdk-source-path: ${SDK_SOURCE_PATH:/opt/linkwork-agent-build/sdk-source}
+  zzd-binaries-path: ${ZZD_BINARIES_PATH:/opt/linkwork-agent-build/zzd-binaries}
 
 # NFS 存储配置（替代原 OSS）
 # 后续更换 NFS 服务器地址只需重新 mount + 修改 NFS_STORAGE_BASE_PATH 环境变量，无需改代码

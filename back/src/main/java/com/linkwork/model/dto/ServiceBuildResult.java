@@ -3,7 +3,6 @@ package com.linkwork.model.dto;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.Instant;
 import java.util.List;
 
 /**
@@ -20,7 +19,7 @@ public class ServiceBuildResult {
     private String podGroupName;        // 创建的 PodGroup 名称（仅 K8s 模式）
     private List<String> podNames;      // 创建的 Pod 名称列表（仅 K8s 模式，BUILDING 时为空）
     private String queueName;           // 分配的队列名称（仅 K8s 模式）
-    private Instant createdAt;
+    private String createdAt;
     
     // ========== 构建追踪 ==========
     /**
@@ -83,7 +82,7 @@ public class ServiceBuildResult {
             .queueName(queueName)
             .builtAgentImage(builtAgentImage)
             .buildDurationMs(buildDurationMs)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -104,7 +103,7 @@ public class ServiceBuildResult {
             .scheduledNode(scheduledNode)
             .builtAgentImage(builtAgentImage)
             .buildDurationMs(buildDurationMs)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -117,7 +116,7 @@ public class ServiceBuildResult {
             .success(true)
             .status("SUCCESS")
             .composeTar(composeTar)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -134,7 +133,7 @@ public class ServiceBuildResult {
             .podGroupName(podGroupName)
             .podNames(podNames)
             .queueName(queueName)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -153,7 +152,7 @@ public class ServiceBuildResult {
             .podNames(podNames)
             .queueName(queueName)
             .scheduledNode(scheduledNode)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -164,7 +163,7 @@ public class ServiceBuildResult {
             .status("FAILED")
             .errorCode(errorCode)
             .errorMessage(errorMessage)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
     
@@ -187,7 +186,7 @@ public class ServiceBuildResult {
             .podGroupName(podGroupName)
             .queueName(queueName)
             .message(message)
-            .createdAt(Instant.now())
+            .createdAt(java.time.Instant.now().toString())
             .build();
     }
 }

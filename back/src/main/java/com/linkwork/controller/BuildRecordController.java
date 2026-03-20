@@ -42,7 +42,7 @@ public class BuildRecordController {
         Map<String, Object> response = new HashMap<>();
         response.put("code", 0);
         response.put("msg", "success");
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now().toString());
         
         Map<String, Object> data;
         if (roleId != null) {
@@ -66,13 +66,13 @@ public class BuildRecordController {
         if (entity == null) {
             response.put("code", 404);
             response.put("msg", "Build record not found: " + buildNo);
-            response.put("timestamp", LocalDateTime.now());
+            response.put("timestamp", LocalDateTime.now().toString());
             return response;
         }
         
         response.put("code", 0);
         response.put("msg", "success");
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now().toString());
         
         Map<String, Object> data = new HashMap<>();
         data.put("id", entity.getId().toString());
@@ -86,8 +86,8 @@ public class BuildRecordController {
         data.put("configSnapshot", entity.getConfigSnapshot());
         data.put("creatorId", entity.getCreatorId());
         data.put("creatorName", entity.getCreatorName());
-        data.put("createdAt", entity.getCreatedAt());
-        data.put("updatedAt", entity.getUpdatedAt());
+        data.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        data.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         
         response.put("data", data);
         return response;
@@ -108,14 +108,14 @@ public class BuildRecordController {
             response.put("code", 0);
             response.put("msg", "success");
             response.put("data", null);
-            response.put("timestamp", LocalDateTime.now());
+            response.put("timestamp", LocalDateTime.now().toString());
             return response;
         }
         
         response.put("code", 0);
         response.put("msg", "success");
         response.put("data", items.get(0));
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now().toString());
         return response;
     }
 }

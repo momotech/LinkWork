@@ -12,6 +12,7 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -246,35 +247,33 @@ public class K8sOrchestratorImpl implements K8sOrchestrator {
             return;
         }
         
-        String registry = imageBuildConfig.getRegistry();
+        String registryHost = resolveRegistryHostForPull(config);
+        if (!StringUtils.hasText(registryHost)) {
+            log.info("Agent image appears local/no-registry, skipping imagePullSecret creation");
+            return;
+        }
         String username = imageBuildConfig.getRegistryUsername();
         String password = imageBuildConfig.getRegistryPassword();
         
-        if (registry == null || registry.isEmpty() || 
-            username == null || username.isEmpty() || 
-            password == null || password.isEmpty()) {
+        if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             log.info("Registry credentials not configured, skipping imagePullSecret creation");
             return;
         }
-        
-        // 提取 host 部分作为 registry address（如 10.30.107.146/robot → 10.30.107.146:80）
-        // 容器运行时（containerd/Docker）按主机名匹配 auths，不含路径
-        String registryHost = registry;
-        if (registryHost.contains("/")) {
-            registryHost = registryHost.substring(0, registryHost.indexOf("/"));
-        }
-        
+
         String namespace = config.getNamespace();
         
-        // 检查 Secret 是否已存在
+        // 检查 Secret 是否已存在（存在则覆盖，确保 registry host 与凭证保持最新）
         Secret existing = kubernetesClient.secrets()
             .inNamespace(namespace)
             .withName(secretName)
             .get();
         
         if (existing != null) {
-            log.info("ImagePullSecret {} already exists in namespace {}", secretName, namespace);
-            return;
+            kubernetesClient.secrets()
+                .inNamespace(namespace)
+                .withName(secretName)
+                .delete();
+            log.info("ImagePullSecret {} already exists in namespace {}, recreating", secretName, namespace);
         }
         
         // 构建 dockerconfigjson 格式的凭证
@@ -301,6 +300,64 @@ public class K8sOrchestratorImpl implements K8sOrchestrator {
             .create();
         
         log.info("Created ImagePullSecret {} in namespace {}", secretName, namespace);
+    }
+
+    private String resolveRegistryHostForPull(MergedConfig config) {
+        String registryHostFromImage = extractRegistryHostFromImage(config.getAgentImage());
+        if (StringUtils.hasText(registryHostFromImage)) {
+            return registryHostFromImage;
+        }
+
+        if (StringUtils.hasText(config.getImageRegistry())) {
+            return extractRegistryHost(config.getImageRegistry());
+        }
+
+        if (StringUtils.hasText(imageBuildConfig.getRegistry())) {
+            return extractRegistryHost(imageBuildConfig.getRegistry());
+        }
+
+        return "";
+    }
+
+    /**
+     * 从镜像地址提取 registry host：
+     * 仅当首段符合 registry 形式（含 '.'、':' 或 localhost）时认为包含 registry。
+     * 例如:
+     * - 10.30.107.146/robot/a:b -> 10.30.107.146
+     * - docker.io/library/nginx:latest -> docker.io
+     * - service-123-agent:tag -> ""
+     */
+    private String extractRegistryHostFromImage(String image) {
+        if (!StringUtils.hasText(image)) {
+            return "";
+        }
+        String value = image.trim();
+        int slash = value.indexOf('/');
+        if (slash <= 0) {
+            return "";
+        }
+        String first = value.substring(0, slash);
+        if (first.contains(".") || first.contains(":") || "localhost".equals(first)) {
+            return first;
+        }
+        return "";
+    }
+
+    private String extractRegistryHost(String registry) {
+        if (!StringUtils.hasText(registry)) {
+            return "";
+        }
+        String value = registry.trim();
+        if (value.startsWith("http://")) {
+            value = value.substring("http://".length());
+        } else if (value.startsWith("https://")) {
+            value = value.substring("https://".length());
+        }
+        int slash = value.indexOf("/");
+        if (slash > 0) {
+            return value.substring(0, slash);
+        }
+        return value;
     }
     
     private void createTokenSecret(MergedConfig config) {
@@ -1493,6 +1550,15 @@ public class K8sOrchestratorImpl implements K8sOrchestrator {
             
             List<String> runningPods = getRunningPods(serviceId);
             int previousCount = runningPods.size();
+
+            // 当服务当前无存活 Pod 时，先刷新依赖资源，避免使用到过期 ConfigMap/Secret。
+            if (previousCount == 0) {
+                createImagePullSecret(config);
+                createTokenSecret(config);
+                createAgentConfigMap(config);
+                ensureRunnerScriptsConfigMap(config.getNamespace());
+                createPodGroup(config);
+            }
             
             if (targetPodCount <= previousCount) {
                 log.info("Service {} already has {} pods, target is {}, no scaling needed",

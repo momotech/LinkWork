@@ -118,7 +118,7 @@ public class RoleController {
         data.put("pagination", pagination);
 
         response.put("data", data);
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now().toString());
 
         return response;
     }
@@ -147,7 +147,7 @@ public class RoleController {
         response.put("code", 0);
         response.put("msg", "success");
         response.put("data", Map.of("items", items, "limit", Math.max(1, limit)));
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now().toString());
         return response;
     }
 
@@ -179,7 +179,7 @@ public class RoleController {
         data.put("isFavorite", roleService.isFavorite(id, userId));
         data.put("isPublic", Boolean.TRUE.equals(role.getIsPublic()));
         data.put("maxEmployees", role.getMaxEmployees());
-        data.put("createdAt", role.getCreatedAt());
+        data.put("createdAt", role.getCreatedAt() != null ? role.getCreatedAt().toString() : null);
 
         if (role.getConfigJson() != null) {
             RoleEntity.RoleConfig config = role.getConfigJson();

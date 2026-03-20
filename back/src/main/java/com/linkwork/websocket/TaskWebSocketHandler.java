@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * 任务 WebSocket 事件推送。
@@ -43,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Component
 public class TaskWebSocketHandler extends TextWebSocketHandler {
+    private static final Pattern NUMERIC_ID_PATTERN = Pattern.compile("^\\d+$");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final StringRedisTemplate redisTemplate;
@@ -115,7 +117,7 @@ public class TaskWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         Map<String, Object> request = objectMapper.readValue(message.getPayload(), Map.class);
         String action = (String) request.get("action");
-        String taskId = (String) request.get("taskId");
+        String taskId = firstNonBlank(request, "taskId", "taskNo", "task_id");
         log.info("Received message: action={}, taskId={}", action, taskId);
         if ("bind".equals(action) && taskId != null) {
             bindTask(session, taskId);
@@ -123,9 +125,14 @@ public class TaskWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void bindTask(WebSocketSession session, String taskId) {
-        sessionTaskMap.put(session.getId(), taskId);
-        log.info("Session {} bound to task {}", session.getId(), taskId);
-        pushHistoryEvents(session, taskId);
+        String taskNo = normalizeTaskNo(taskId);
+        sessionTaskMap.put(session.getId(), taskNo);
+        if (!taskNo.equals(taskId)) {
+            log.info("Session {} bound task normalized: rawTaskId={}, taskNo={}", session.getId(), taskId, taskNo);
+        } else {
+            log.info("Session {} bound to task {}", session.getId(), taskNo);
+        }
+        pushHistoryEvents(session, taskNo);
     }
 
     private List<String> buildStreamKeys(String taskId) {
@@ -145,6 +152,28 @@ public class TaskWebSocketHandler extends TextWebSocketHandler {
             log.debug("WebSocket resolve roleId failed, fallback null: taskId={}", taskId);
             return null;
         }
+    }
+
+    private String normalizeTaskNo(String rawTaskId) {
+        if (!StringUtils.hasText(rawTaskId)) {
+            return rawTaskId;
+        }
+        String candidate = rawTaskId.trim();
+        try {
+            return taskService.getTaskByNo(candidate).getTaskNo();
+        } catch (Exception ignored) {
+            // ignore and continue resolving by numeric id
+        }
+
+        if (NUMERIC_ID_PATTERN.matcher(candidate).matches()) {
+            try {
+                return taskService.getTask(Long.parseLong(candidate)).getTaskNo();
+            } catch (Exception e) {
+                log.debug("WebSocket normalize taskId by numeric id failed: taskId={}, err={}",
+                        candidate, e.getMessage());
+            }
+        }
+        return candidate;
     }
 
     private void pushHistoryEvents(WebSocketSession session, String taskId) {

@@ -260,6 +260,17 @@ public class SkillController {
         String uri = request.getRequestURI();
         String prefix = "/api/v1/skills/" + name + "/files/";
         String encodedPath = uri.substring(uri.indexOf(prefix) + prefix.length());
-        return URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
+        String normalized = encodedPath == null ? "" : encodedPath.trim().replace('\\', '/');
+        for (int i = 0; i < 3; i++) {
+            String decoded = URLDecoder.decode(normalized, StandardCharsets.UTF_8);
+            if (decoded.equals(normalized)) {
+                break;
+            }
+            normalized = decoded;
+        }
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
     }
 }

@@ -732,12 +732,32 @@ public class PodSpecGenerator {
     // ==================== 镜像拉取凭证 ====================
     
     private List<LocalObjectReference> buildImagePullSecrets(MergedConfig config) {
-        if (StringUtils.hasText(config.getImagePullSecret())) {
+        if (StringUtils.hasText(config.getImagePullSecret()) && requiresImagePullSecret(config)) {
             return Collections.singletonList(
                 new LocalObjectReference(config.getImagePullSecret())
             );
         }
         return Collections.emptyList();
+    }
+
+    private boolean requiresImagePullSecret(MergedConfig config) {
+        if (hasRegistryHost(config.getAgentImage())) {
+            return true;
+        }
+        return hasRegistryHost(config.getRunnerImage());
+    }
+
+    private boolean hasRegistryHost(String image) {
+        if (!StringUtils.hasText(image)) {
+            return false;
+        }
+        String value = image.trim();
+        int slash = value.indexOf('/');
+        if (slash <= 0) {
+            return false;
+        }
+        String first = value.substring(0, slash);
+        return first.contains(".") || first.contains(":") || "localhost".equals(first);
     }
     
     // ==================== 节点亲和配置 ====================

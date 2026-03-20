@@ -366,7 +366,7 @@ public class RoleService extends ServiceImpl<RoleMapper, RoleEntity> {
     private String normalizeRequiredRolePrompt(String rawPrompt) {
         String normalized = normalizeText(rawPrompt);
         if (!StringUtils.hasText(normalized)) {
-            throw new IllegalArgumentException("岗位自定义 Prompt 不能为空");
+            return "你是一个智能岗位助手，请根据用户需求高质量完成任务。";
         }
         return normalized;
     }

@@ -1,9 +1,8 @@
 package com.linkwork.common;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -17,15 +16,14 @@ public class ApiResponse<T> {
     private T data;
     private String traceId;
 
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
-    private LocalDateTime timestamp;
+    private String timestamp;
 
     private ApiResponse(Integer code, String msg, T data) {
         this.code = code;
         this.msg = msg;
         this.data = data;
         this.traceId = UUID.randomUUID().toString();
-        this.timestamp = LocalDateTime.now();
+        this.timestamp = Instant.now().toString();
     }
 
     public static <T> ApiResponse<T> success(T data) {

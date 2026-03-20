@@ -5,8 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.BuildImageResultCallback;
+import com.github.dockerjava.api.command.ExecCreateCmdResponse;
+import com.github.dockerjava.api.command.InspectExecResponse;
+import com.github.dockerjava.api.command.InspectImageResponse;
 import com.github.dockerjava.api.model.AuthConfig;
 import com.github.dockerjava.api.model.BuildResponseItem;
+import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.Frame;
+import com.github.dockerjava.api.model.Image;
 import com.github.dockerjava.api.model.PullResponseItem;
 import com.github.dockerjava.api.model.PushResponseItem;
 import com.github.dockerjava.api.exception.NotFoundException;
@@ -16,8 +22,6 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.zerodep.ZerodepDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 import com.linkwork.config.BuildQueueConfig;
-import com.linkwork.config.BuildQueueConfig;
-import com.linkwork.config.BuildQueueConfig;
 import com.linkwork.config.ImageBuildConfig;
 import com.linkwork.model.dto.ImageBuildResult;
 import com.linkwork.model.dto.ServiceBuildRequest;
@@ -26,23 +30,32 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.file.DirectoryStream;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /**
  * 镜像构建服务
@@ -62,6 +75,7 @@ public class ImageBuildService {
     
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = 
         DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC);
+    private static final Pattern LOCAL_BUILD_REPO_PATTERN = Pattern.compile("^service-.*-agent$");
     
     private final ImageBuildConfig config;
     private final BuildQueueConfig buildQueueConfig;
@@ -206,6 +220,7 @@ public class ImageBuildService {
             
             // 解析镜像仓库
             String registry = resolveRegistry(request);
+            boolean shouldPush = shouldPushImage(request, registry);
             publishLog(buildId, "info", "镜像仓库: " + (StringUtils.hasText(registry) ? registry : "本地"));
             
             // 构建 Agent 镜像
@@ -220,20 +235,22 @@ public class ImageBuildService {
             publishLog(buildId, "info", "");
             publishLog(buildId, "info", "镜像构建成功: " + agentImageTag);
             
-            // K8s 模式推送镜像（如果启用）
+            // K8s 模式推送镜像（仅请求配置了镜像仓库时推送）
             boolean pushed = false;
-            if (config.isPushEnabled() && request.getDeployMode() == DeployMode.K8S && StringUtils.hasText(registry)) {
+            if (shouldPush) {
                 publishLog(buildId, "info", "");
                 publishLog(buildId, "info", "=== 开始推送镜像 ===");
-                pushImage(agentImageTag, buildId);
+                pushImage(agentImageTag, buildId, registry);
                 pushed = true;
                 publishLog(buildId, "info", "镜像推送成功");
                 
                 // 推送成功后删除本地镜像（K8s 会从仓库拉取，不需要保留本地副本）
                 removeLocalImage(agentImageTag, buildId);
             } else {
-                publishLog(buildId, "warn", "跳过镜像推送（未配置或非 K8S 模式）");
-                log.info("Image push disabled or no registry configured, skipping push for: {}", agentImageTag);
+                publishLog(buildId, "warn", "跳过镜像推送（未配置镜像仓库或非 K8S 模式）");
+                log.info("Image push skipped (deployMode={}, registry={}) for image: {}",
+                    request.getDeployMode(), registry, agentImageTag);
+                syncLocalImageToKindIfNeeded(request, agentImageTag, buildId);
             }
             
             long duration = System.currentTimeMillis() - startTime;
@@ -321,10 +338,147 @@ public class ImageBuildService {
      * 解析镜像仓库地址
      */
     private String resolveRegistry(ServiceBuildRequest request) {
-        if (StringUtils.hasText(request.getImageRegistry())) {
-            return request.getImageRegistry();
+        if (!StringUtils.hasText(request.getImageRegistry())) {
+            return "";
         }
-        return config.getRegistry();
+        String registry = request.getImageRegistry().trim();
+        while (registry.endsWith("/")) {
+            registry = registry.substring(0, registry.length() - 1);
+        }
+        return registry;
+    }
+
+    /**
+     * 仅当 K8s 且请求显式配置了仓库时才推送
+     */
+    private boolean shouldPushImage(ServiceBuildRequest request, String registry) {
+        return request.getDeployMode() == DeployMode.K8S && StringUtils.hasText(registry);
+    }
+
+    private void syncLocalImageToKindIfNeeded(ServiceBuildRequest request, String imageTag, String buildId) {
+        if (request.getDeployMode() != DeployMode.K8S) {
+            return;
+        }
+        if (!config.isAutoLoadToKind()) {
+            log.info("Auto kind image load disabled, skip local image sync: {}", imageTag);
+            return;
+        }
+        if (hasRegistryHost(imageTag)) {
+            return;
+        }
+
+        List<Container> kindNodes = findKindNodeContainers();
+        if (kindNodes.isEmpty()) {
+            throw new IllegalStateException("本地镜像模式下未发现 Kind 节点，无法自动分发镜像。"
+                + "请配置 imageRegistry 推送远程仓库，或检查 Kind 集群/节点标签配置。");
+        }
+
+        publishLog(buildId, "info", "检测到本地镜像，开始同步到 Kind 节点");
+        for (Container node : kindNodes) {
+            String nodeName = resolveContainerName(node);
+            if (!StringUtils.hasText(nodeName)) {
+                continue;
+            }
+            publishLog(buildId, "debug", "同步镜像到节点: " + nodeName);
+            importImageIntoKindNode(imageTag, node, nodeName);
+        }
+        publishLog(buildId, "info", "Kind 节点镜像同步完成");
+    }
+
+    private List<Container> findKindNodeContainers() {
+        List<Container> all = dockerClient.listContainersCmd().withShowAll(false).exec();
+        List<Container> nodes = new ArrayList<>();
+        String expectedCluster = normalize(config.getKindClusterName());
+
+        for (Container c : all) {
+            Map<String, String> labels = c.getLabels();
+            if (labels == null) {
+                continue;
+            }
+            String cluster = normalize(labels.get("io.x-k8s.kind.cluster"));
+            String role = normalize(labels.get("io.x-k8s.kind.role"));
+            if (!StringUtils.hasText(cluster) || !StringUtils.hasText(role)) {
+                continue;
+            }
+            if (StringUtils.hasText(expectedCluster) && !expectedCluster.equals(cluster)) {
+                continue;
+            }
+            if (!"control-plane".equals(role) && !"worker".equals(role)) {
+                continue;
+            }
+            nodes.add(c);
+        }
+        return nodes;
+    }
+
+    private void importImageIntoKindNode(String imageTag, Container node, String nodeName) {
+        ExecCreateCmdResponse exec = dockerClient.execCreateCmd(node.getId())
+            .withAttachStdin(true)
+            .withAttachStdout(true)
+            .withAttachStderr(true)
+            .withCmd("ctr", "-n", "k8s.io", "images", "import", "-")
+            .exec();
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (InputStream tarStream = dockerClient.saveImageCmd(imageTag).exec()) {
+            ResultCallback.Adapter<Frame> callback = new ResultCallback.Adapter<>() {
+                @Override
+                public void onNext(Frame item) {
+                    try {
+                        if (item != null && item.getPayload() != null) {
+                            output.write(item.getPayload());
+                        }
+                    } catch (IOException ignored) {
+                        // 输出只用于排障，写失败不影响主流程
+                    }
+                    super.onNext(item);
+                }
+            };
+
+            dockerClient.execStartCmd(exec.getId())
+                .withStdIn(tarStream)
+                .exec(callback)
+                .awaitCompletion(config.getKindLoadTimeout(), TimeUnit.SECONDS);
+
+            InspectExecResponse inspect = dockerClient.inspectExecCmd(exec.getId()).exec();
+            Long exitCode = inspect != null ? inspect.getExitCodeLong() : null;
+            if (exitCode == null || exitCode != 0L) {
+                String details = output.toString();
+                throw new IllegalStateException("Kind 节点导入失败: node=" + nodeName
+                    + ", exitCode=" + exitCode + ", output=" + details);
+            }
+            log.info("Image imported to kind node successfully: node={}, image={}", nodeName, imageTag);
+        } catch (Exception e) {
+            throw new RuntimeException("同步镜像到 Kind 节点失败: node=" + nodeName + ", image=" + imageTag, e);
+        }
+    }
+
+    private boolean hasRegistryHost(String image) {
+        if (!StringUtils.hasText(image)) {
+            return false;
+        }
+        String value = image.trim();
+        int slash = value.indexOf('/');
+        if (slash <= 0) {
+            return false;
+        }
+        String first = value.substring(0, slash);
+        return first.contains(".") || first.contains(":") || "localhost".equals(first);
+    }
+
+    private String resolveContainerName(Container container) {
+        if (container == null || container.getNames() == null || container.getNames().length == 0) {
+            return "";
+        }
+        String name = container.getNames()[0];
+        if (name == null) {
+            return "";
+        }
+        return name.startsWith("/") ? name.substring(1) : name;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
     
     /**
@@ -516,9 +670,27 @@ public class ImageBuildService {
      */
     String generateDockerfile(String baseImage, Map<String, Object> envVars) {
         StringBuilder sb = new StringBuilder();
+        String sdkRepoUrl = config.getSdkRepoUrl();
+        String assetSourceImage = config.getAssetSourceImage();
+        boolean hasSdkRepo = StringUtils.hasText(sdkRepoUrl);
+        boolean hasAssetSourceImage = !hasSdkRepo && StringUtils.hasText(assetSourceImage);
+
+        String sdkSourcePath = StringUtils.hasText(config.getSdkSourcePath())
+            ? config.getSdkSourcePath().trim()
+            : "/opt/linkwork-agent-build/sdk-source";
+        String zzdBinariesPath = StringUtils.hasText(config.getZzdBinariesPath())
+            ? config.getZzdBinariesPath().trim()
+            : "/opt/linkwork-agent-build/zzd-binaries";
+        String buildAssetsRoot = sdkSourcePath.contains("/")
+            ? sdkSourcePath.substring(0, sdkSourcePath.lastIndexOf('/'))
+            : "/opt/linkwork-agent-build";
+        String startScriptsPath = buildAssetsRoot + "/start-scripts";
         
         // FROM 指令
         sb.append("# Auto-generated Dockerfile\n");
+        if (hasAssetSourceImage) {
+            sb.append("FROM ").append(assetSourceImage.trim()).append(" AS linkwork_assets\n\n");
+        }
         sb.append("FROM ").append(baseImage).append("\n\n");
         
         // ENV 指令（注入环境变量）
@@ -549,8 +721,7 @@ public class ImageBuildService {
         }
         
         // Clone SDK repo and prepare sdk-source + zzd-binaries (before build.sh)
-        String sdkRepoUrl = config.getSdkRepoUrl();
-        if (StringUtils.hasText(sdkRepoUrl)) {
+        if (hasSdkRepo) {
             // 使用 GIT_TOKEN 环境变量认证（已在 ENV 指令中注入），不再用硬编码的 sdkRepoUsername/Password  合并分支暂时注释，这是init时拉取sdk 仓库的节点过程，该节点是不需要用户的业务级仓库token的
 //            String cloneCmd = sdkRepoUrl.replace("https://", "https://oauth2:${GIT_TOKEN}@");
 
@@ -569,21 +740,45 @@ public class ImageBuildService {
             sb.append("RUN set -e \\\n");
             sb.append("    && git clone --depth 1 --single-branch -b ").append(branch).append(" ").append(cloneUrl).append(" /tmp/_sdk_repo \\\n");
             // BUILD_ASSETS_ROOT directory structure (build.sh expects these sub-directories)
-            sb.append("    && mkdir -p /opt/momo-agent-build/zzd-binaries \\\n");
-            sb.append("    && mkdir -p /opt/momo-agent-build/sdk-source \\\n");
-            sb.append("    && mkdir -p /opt/momo-agent-build/start-scripts \\\n");
+            sb.append("    && mkdir -p ").append(zzdBinariesPath).append(" \\\n");
+            sb.append("    && mkdir -p ").append(sdkSourcePath).append(" \\\n");
+            sb.append("    && mkdir -p ").append(startScriptsPath).append(" \\\n");
             // zzd binaries
             sb.append("    && for bin in zzd zz gen-key encrypt-key; do \\\n");
-            sb.append("         cp /tmp/_sdk_repo/docker/agent/zzd/$bin /opt/momo-agent-build/zzd-binaries/; \\\n");
+            sb.append("         cp /tmp/_sdk_repo/docker/agent/zzd/$bin ").append(zzdBinariesPath).append("/; \\\n");
             sb.append("       done \\\n");
-            // SDK source
-            sb.append("    && cp -a /tmp/_sdk_repo/momo-agent-sdk/. /opt/momo-agent-build/sdk-source/ \\\n");
+            // SDK source (linkwork-agent-sdk, fallback agent-sdk for backward compatibility)
+            sb.append("    && if [ -d /tmp/_sdk_repo/linkwork-agent-sdk ]; then \\\n");
+            sb.append("         cp -a /tmp/_sdk_repo/linkwork-agent-sdk/. ").append(sdkSourcePath).append("/; \\\n");
+            sb.append("       elif [ -d /tmp/_sdk_repo/agent-sdk ]; then \\\n");
+            sb.append("         cp -a /tmp/_sdk_repo/agent-sdk/. ").append(sdkSourcePath).append("/; \\\n");
+            sb.append("       else \\\n");
+            sb.append("         echo 'SDK source directory not found in repo'; exit 1; \\\n");
+            sb.append("       fi \\\n");
             // start scripts
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh /opt/momo-agent-build/start-scripts/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh /opt/momo-agent-build/start-scripts/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py /opt/momo-agent-build/start-scripts/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh ").append(startScriptsPath).append("/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh ").append(startScriptsPath).append("/ \\\n");
+            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py ").append(startScriptsPath).append("/ \\\n");
             // cleanup
             sb.append("    && rm -rf /tmp/_sdk_repo\n\n");
+
+            // Cedar 策略文件 → /tmp/cedar-policies/ (build.sh download_cedar_policies 会从这里读取)
+            sb.append("# Cedar policy files for build.sh to deploy\n");
+            sb.append("COPY cedar-policies/ /tmp/cedar-policies/\n\n");
+        } else if (hasAssetSourceImage) {
+            sb.append("# Fallback assets copied from local image\n");
+            sb.append("RUN mkdir -p ").append(zzdBinariesPath).append(" \\\n");
+            sb.append("    && mkdir -p ").append(sdkSourcePath).append(" \\\n");
+            sb.append("    && mkdir -p ").append(startScriptsPath).append("\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/bin/zzd ").append(zzdBinariesPath).append("/zzd\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/bin/zz ").append(zzdBinariesPath).append("/zz\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/bin/gen-key ").append(zzdBinariesPath).append("/gen-key\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/bin/encrypt-key ").append(zzdBinariesPath).append("/encrypt-key\n");
+            sb.append("COPY --from=linkwork_assets /opt/agent/start-single.sh ").append(startScriptsPath).append("/start-single.sh\n");
+            sb.append("COPY --from=linkwork_assets /opt/agent/start-dual.sh ").append(startScriptsPath).append("/start-dual.sh\n");
+            sb.append("COPY --from=linkwork_assets /opt/agent/ai_employee.py ").append(startScriptsPath).append("/ai_employee.py\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk\n");
+            sb.append("COPY --from=linkwork_assets /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk-*.dist-info /usr/local/lib/python3.12/site-packages/\n\n");
 
             // Cedar 策略文件 → /tmp/cedar-policies/ (build.sh download_cedar_policies 会从这里读取)
             sb.append("# Cedar policy files for build.sh to deploy\n");
@@ -684,7 +879,7 @@ public class ImageBuildService {
     /**
      * 推送镜像到仓库（带重试机制）
      */
-    private void pushImage(String imageTag, String buildId) throws Exception {
+    private void pushImage(String imageTag, String buildId, String registry) throws Exception {
         log.info("Pushing image: {}", imageTag);
         publishLog(buildId, "info", "正在推送镜像: " + imageTag);
         
@@ -693,7 +888,7 @@ public class ImageBuildService {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                doPushImage(imageTag, buildId, attempt);
+                doPushImage(imageTag, buildId, registry, attempt);
                 // 推送成功
                 publishLog(buildId, "info", "镜像推送完成: " + imageTag);
                 log.info("Image pushed successfully: {}", imageTag);
@@ -711,11 +906,10 @@ public class ImageBuildService {
                         attempt, attempt * 5, errorMsg);
 
                     // 重新写入凭据文件并刷新认证
-                    String registryHost = config.getRegistry();
-                    if (registryHost.contains("/")) {
-                        registryHost = registryHost.substring(0, registryHost.indexOf("/"));
+                    String registryHost = extractRegistryHost(registry);
+                    if (StringUtils.hasText(registryHost) && StringUtils.hasText(config.getRegistryUsername())) {
+                        writeDockerConfigJson(registryHost, config.getRegistryUsername(), config.getRegistryPassword());
                     }
-                    writeDockerConfigJson(registryHost, config.getRegistryUsername(), config.getRegistryPassword());
 
                     Thread.sleep(attempt * 5000L);
                 } else if (!isAuthError && attempt < maxRetries) {
@@ -737,15 +931,12 @@ public class ImageBuildService {
     /**
      * 执行单次镜像推送
      */
-    private void doPushImage(String imageTag, String buildId, int attempt) throws Exception {
+    private void doPushImage(String imageTag, String buildId, String registry, int attempt) throws Exception {
         // 构建认证配置
         AuthConfig authConfig = null;
         if (StringUtils.hasText(config.getRegistryUsername()) && 
             StringUtils.hasText(config.getRegistryPassword())) {
-            String registryAddress = config.getRegistry();
-            if (StringUtils.hasText(registryAddress) && registryAddress.contains("/")) {
-                registryAddress = registryAddress.substring(0, registryAddress.indexOf("/"));
-            }
+            String registryAddress = extractRegistryHost(registry);
             // 使用 http:// 前缀明确标识为 HTTP 仓库，避免 daemon 默认走 HTTPS token 交换
             authConfig = new AuthConfig()
                 .withRegistryAddress("http://" + registryAddress)
@@ -838,6 +1029,23 @@ public class ImageBuildService {
         publishLog(buildId, "info", "镜像推送完成: " + imageTag);
         log.info("Image pushed successfully: {}", imageTag);
     }
+
+    private String extractRegistryHost(String registry) {
+        if (!StringUtils.hasText(registry)) {
+            return "";
+        }
+        String value = registry.trim();
+        if (value.startsWith("http://")) {
+            value = value.substring("http://".length());
+        } else if (value.startsWith("https://")) {
+            value = value.substring("https://".length());
+        }
+        int slash = value.indexOf("/");
+        if (slash > 0) {
+            return value.substring(0, slash);
+        }
+        return value;
+    }
     
     /**
      * 删除本地镜像（推送成功后清理，避免磁盘堆积）
@@ -851,6 +1059,176 @@ public class ImageBuildService {
             // 清理失败不影响构建结果，仅告警
             publishLog(buildId, "warn", "本地镜像清理失败（不影响部署）: " + e.getMessage());
             log.warn("Failed to remove local image {}: {}", imageTag, e.getMessage());
+        }
+    }
+
+    /**
+     * 周期清理本地构建镜像，并在 Kind 节点触发未使用镜像清理。
+     */
+    @Scheduled(cron = "${image-build.local-cleanup-cron:0 40 * * * *}")
+    public void periodicLocalImageCleanup() {
+        try {
+            Map<String, Object> result = runLocalImageMaintenance("scheduled");
+            log.info("Local image cleanup finished: {}", result);
+        } catch (Exception e) {
+            log.warn("Periodic local image cleanup failed: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 立即执行一次本地镜像维护（供运维手动触发）。
+     */
+    public synchronized Map<String, Object> runLocalImageMaintenance(String triggerSource) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("triggerSource", StringUtils.hasText(triggerSource) ? triggerSource : "unknown");
+        result.put("cleanupEnabled", config.isLocalCleanupEnabled());
+        result.put("kindPruneEnabled", config.isKindPruneEnabled());
+        result.put("retentionHours", Math.max(config.getLocalImageRetentionHours(), 1));
+        result.put("kindClusterName", normalize(config.getKindClusterName()));
+
+        if (!config.isLocalCleanupEnabled()) {
+            result.put("removedLocalImages", 0);
+            result.put("prunedKindNodes", 0);
+            result.put("skipped", "image-build.local-cleanup-enabled=false");
+            return result;
+        }
+
+        int removed = cleanupExpiredLocalBuildImages();
+        result.put("removedLocalImages", removed);
+
+        if (config.isKindPruneEnabled()) {
+            int prunedNodes = pruneKindNodeImages();
+            result.put("prunedKindNodes", prunedNodes);
+        } else {
+            result.put("prunedKindNodes", 0);
+        }
+        return result;
+    }
+
+    private int cleanupExpiredLocalBuildImages() {
+        long nowMs = System.currentTimeMillis();
+        long retentionMs = TimeUnit.HOURS.toMillis(Math.max(config.getLocalImageRetentionHours(), 1));
+        Set<String> activeImageIds = collectActiveContainerImageIds();
+        int removed = 0;
+
+        List<Image> images = dockerClient.listImagesCmd().withShowAll(true).exec();
+        for (Image image : images) {
+            String imageId = image.getId();
+            if (StringUtils.hasText(imageId) && activeImageIds.contains(imageId)) {
+                continue;
+            }
+            long createdMs = resolveImageCreatedMillis(image);
+            if (createdMs <= 0 || nowMs - createdMs < retentionMs) {
+                continue;
+            }
+            String[] repoTags = image.getRepoTags();
+            if (repoTags == null || repoTags.length == 0) {
+                continue;
+            }
+            for (String tag : repoTags) {
+                if (!shouldCleanupLocalTag(tag)) {
+                    continue;
+                }
+                try {
+                    dockerClient.removeImageCmd(tag).withForce(false).withNoPrune(true).exec();
+                    removed++;
+                    log.info("Removed expired local build image: {}", tag);
+                } catch (Exception e) {
+                    log.debug("Skip removing image {}: {}", tag, e.getMessage());
+                }
+            }
+        }
+        return removed;
+    }
+
+    private Set<String> collectActiveContainerImageIds() {
+        Set<String> result = new HashSet<>();
+        List<Container> running = dockerClient.listContainersCmd().withShowAll(false).exec();
+        for (Container c : running) {
+            if (StringUtils.hasText(c.getImageId())) {
+                result.add(c.getImageId());
+            }
+        }
+        return result;
+    }
+
+    private long resolveImageCreatedMillis(Image image) {
+        try {
+            if (image.getCreated() != null && image.getCreated() > 0) {
+                return image.getCreated() * 1000;
+            }
+            if (!StringUtils.hasText(image.getId())) {
+                return -1;
+            }
+            InspectImageResponse inspect = dockerClient.inspectImageCmd(image.getId()).exec();
+            if (inspect != null && StringUtils.hasText(inspect.getCreated())) {
+                return OffsetDateTime.parse(inspect.getCreated()).toInstant().toEpochMilli();
+            }
+        } catch (Exception e) {
+            log.debug("Resolve image created time failed: image={}, err={}", image.getId(), e.getMessage());
+        }
+        return -1;
+    }
+
+    private boolean shouldCleanupLocalTag(String tag) {
+        if (!StringUtils.hasText(tag) || "<none>:<none>".equals(tag)) {
+            return false;
+        }
+        int idx = tag.lastIndexOf(':');
+        String repo = idx > 0 ? tag.substring(0, idx) : tag;
+        if (repo.startsWith("docker.io/library/")) {
+            repo = repo.substring("docker.io/library/".length());
+        }
+        return LOCAL_BUILD_REPO_PATTERN.matcher(repo).matches();
+    }
+
+    private int pruneKindNodeImages() {
+        List<Container> kindNodes = findKindNodeContainers();
+        int prunedNodes = 0;
+        for (Container node : kindNodes) {
+            String nodeName = resolveContainerName(node);
+            if (!StringUtils.hasText(nodeName)) {
+                continue;
+            }
+            try {
+                execInNode(node, "crictl", "rmi", "--prune");
+                prunedNodes++;
+                log.info("Pruned unused images on kind node: {}", nodeName);
+            } catch (Exception e) {
+                log.warn("Kind node image prune failed on {}: {}", nodeName, e.getMessage());
+            }
+        }
+        return prunedNodes;
+    }
+
+    private void execInNode(Container node, String... cmd) throws InterruptedException {
+        ExecCreateCmdResponse exec = dockerClient.execCreateCmd(node.getId())
+            .withAttachStdout(true)
+            .withAttachStderr(true)
+            .withCmd(cmd)
+            .exec();
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ResultCallback.Adapter<Frame> callback = new ResultCallback.Adapter<>() {
+            @Override
+            public void onNext(Frame item) {
+                try {
+                    if (item != null && item.getPayload() != null) {
+                        output.write(item.getPayload());
+                    }
+                } catch (IOException ignored) {
+                    // 仅用于日志
+                }
+                super.onNext(item);
+            }
+        };
+        dockerClient.execStartCmd(exec.getId())
+            .exec(callback)
+            .awaitCompletion(Math.max(config.getKindLoadTimeout(), 60), TimeUnit.SECONDS);
+        InspectExecResponse inspect = dockerClient.inspectExecCmd(exec.getId()).exec();
+        Long exit = inspect != null ? inspect.getExitCodeLong() : null;
+        if (exit == null || exit != 0L) {
+            throw new IllegalStateException("exec failed: cmd=" + String.join(" ", cmd)
+                + ", exitCode=" + exit + ", output=" + output);
         }
     }
     

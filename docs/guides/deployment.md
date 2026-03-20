@@ -154,8 +154,10 @@ LinkWork uses a "One Role, One Image" mechanism. The role build process:
 
 1. **Admin configures the role** — Select Skills, MCP tools, security policies, resource quotas
 2. **Trigger image build** — Server dynamically generates a Dockerfile, executes `docker build`
-3. **Push to Harbor** — Auto-push to the configured image registry after build
-4. **K8s pulls and runs** — During task scheduling, K8s pulls the role image from Harbor to create Pods
+3. **Image distribution (choose one)**
+   - `imageRegistry` configured: push the built image to remote registry
+   - `imageRegistry` empty: keep image local and auto-sync only the current built image to Kind nodes (no bulk load of all host images)
+4. **K8s pulls and runs** — During task scheduling, K8s pulls the role image from the configured source
 
 Image naming convention: `{registry}/service-{serviceId}-agent:{serviceId}-{timestamp}`
 
@@ -164,6 +166,25 @@ Base image built on Rocky Linux 9, pre-installed with:
 - Python 3.12, Node.js 24, Java 21, Go 1.22
 - git, curl, jq, and other common tools
 - Claude CLI, uv/uvx, and other AI development tools
+
+### Local Image Ops (Kind)
+
+In local-image mode, backend can auto-run image sync and cleanup. Recommended env vars:
+
+```bash
+LINKWORK_BUILD_LOCAL_LOAD_ENABLED=true
+LINKWORK_BUILD_KIND_CLUSTER_NAME=shared-dev   # optional, auto-discover if empty
+IMAGE_LOCAL_CLEANUP_ENABLED=true
+IMAGE_LOCAL_RETENTION_HOURS=24
+IMAGE_LOCAL_CLEANUP_CRON="0 40 * * * *"       # minute 40 of every hour
+IMAGE_KIND_PRUNE_ENABLED=true
+```
+
+You can also trigger one maintenance run manually (without waiting for cron):
+
+```bash
+curl -X POST http://<linkwork-server>/api/v1/build/ops/local-image-maintenance
+```
 
 ---
 

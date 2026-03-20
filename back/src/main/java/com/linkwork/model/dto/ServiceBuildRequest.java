@@ -83,7 +83,7 @@ public class ServiceBuildRequest {
     
     /**
      * 镜像仓库地址（可选）
-     * 为空时使用系统默认配置：image-build.registry
+     * 为空时仅本地构建，不推送远端仓库
      * K8s 模式下构建的镜像会推送到此仓库
      */
     private String imageRegistry;

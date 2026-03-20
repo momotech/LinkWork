@@ -19,18 +19,23 @@ public class UserSoulEntity {
 
     private String userId;
 
+    @TableField("soul")
     private String content;
 
+    @TableField("template_id")
     private String presetId;
 
+    @TableField(exist = false)
     private Long version;
 
     private String creatorId;
 
     private String creatorName;
 
+    @TableField(exist = false)
     private String updaterId;
 
+    @TableField(exist = false)
     private String updaterName;
 
     @TableField(fill = FieldFill.INSERT)

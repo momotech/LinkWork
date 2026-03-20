@@ -12,7 +12,7 @@
 #    1. 校验基础镜像内置依赖 (Python 3.12, Node.js, npm, git, Claude CLI, uv, uvx)
 #    2. 创建基础目录
 #    3. 安装 zzd 二进制 (zzd, zz, gen-key, encrypt-key)
-#    4. 安装 momo-agent-sdk (源码)
+#    4. 安装 linkwork-agent-sdk (源码)
 #    5. 创建 agent 用户 + passwordless sudo
 #    6. 创建 workspace 目录结构
 #   6.1 部署 security.json/mcp.json/skills 到 /opt/agent/ (root:agent 只读)
@@ -47,7 +47,7 @@
 # 构建输入目录（支持两种来源）：
 #   1) 固定目录（推荐）：$BUILD_ASSETS_ROOT
 #      - zzd-binaries/    - zzd, zz, gen-key, encrypt-key
-#      - sdk-source/      - momo-agent-sdk 源码 (含 pyproject.toml + src/)
+#      - sdk-source/      - linkwork-agent-sdk 源码 (含 pyproject.toml + src/)
 #      - start-scripts/   - start-single.sh, start-dual.sh, ai_employee.py
 #   2) 兼容旧路径（若固定目录不存在则回退）：/tmp/*
 #
@@ -74,7 +74,7 @@ readonly ZZD_SOCKET_DIR="/var/run/zzd"
 readonly ZZD_AUDIT_DIR="/var/log/zzd/audit"
 
 # 构建输入根目录（固定目录，可通过环境变量覆盖）
-readonly BUILD_ASSETS_ROOT="${BUILD_ASSETS_ROOT:-/opt/momo-agent-build}"
+readonly BUILD_ASSETS_ROOT="${BUILD_ASSETS_ROOT:-/opt/linkwork-agent-build}"
 readonly LEGACY_TMP_ROOT="/tmp"
 
 # 输入路径（优先固定目录，不存在时回退旧 /tmp 路径）
@@ -87,6 +87,9 @@ if [[ ! -d "${ZZD_BIN_SRC}" && -d "${LEGACY_TMP_ROOT}/zzd-binaries" ]]; then
 fi
 if [[ ! -d "${SDK_SRC}" && -d "${LEGACY_TMP_ROOT}/sdk-build" ]]; then
     SDK_SRC="${LEGACY_TMP_ROOT}/sdk-build"
+fi
+if [[ ! -d "${SDK_SRC}" && -d "${LEGACY_TMP_ROOT}/linkwork-agent-sdk" ]]; then
+    SDK_SRC="${LEGACY_TMP_ROOT}/linkwork-agent-sdk"
 fi
 if [[ ! -d "${START_SCRIPTS_SRC}" && -d "${LEGACY_TMP_ROOT}/start-scripts" ]]; then
     START_SCRIPTS_SRC="${LEGACY_TMP_ROOT}/start-scripts"
@@ -264,13 +267,24 @@ create_directories() {
 install_zzd_binaries() {
     log_info "安装 zzd 二进制文件..."
 
+    local binaries=("zzd" "zz" "gen-key" "encrypt-key")
+
     if [[ ! -d "${ZZD_BIN_SRC}" ]]; then
+        local missing=()
+        for bin in "${binaries[@]}"; do
+            if ! command_exists "${bin}"; then
+                missing+=("${bin}")
+            fi
+        done
+        if [[ ${#missing[@]} -eq 0 ]]; then
+            log_warn "未找到 ${ZZD_BIN_SRC}，但基础镜像已内置 zzd 二进制，跳过复制"
+            return 0
+        fi
+
         log_error "zzd 二进制目录不存在: ${ZZD_BIN_SRC}"
         log_error "请将 zzd/zz/gen-key/encrypt-key 放置到固定目录，或通过 ZZD_BIN_SRC 指定路径"
         return 1
     fi
-
-    local binaries=("zzd" "zz" "gen-key" "encrypt-key")
 
     for bin in "${binaries[@]}"; do
         if [[ ! -f "${ZZD_BIN_SRC}/${bin}" ]]; then
@@ -290,25 +304,35 @@ install_zzd_binaries() {
     return 0
 }
 
-# 安装 momo-agent-sdk
+# 安装 linkwork-agent-sdk
 install_sdk() {
-    log_info "安装 momo-agent-sdk..."
-
-    if [[ ! -d "${SDK_SRC}" ]]; then
-        log_error "SDK 源码目录不存在: ${SDK_SRC}"
-        log_error "请将 momo-agent-sdk 源码放置到固定目录，或通过 SDK_SRC 指定路径"
-        return 1
-    fi
-
-    if [[ ! -f "${SDK_SRC}/pyproject.toml" ]]; then
-        log_error "${SDK_SRC}/pyproject.toml 不存在"
-        return 1
-    fi
+    log_info "安装 linkwork-agent-sdk..."
 
     # 固定使用 Python 3.12（基础镜像内置）
     local python_cmd="python3.12"
     if ! command_exists "${python_cmd}"; then
         log_error "未找到 ${python_cmd}"
+        return 1
+    fi
+
+    if [[ ! -d "${SDK_SRC}" ]]; then
+        if ${python_cmd} -c "import linkwork_agent_sdk" >/dev/null 2>&1; then
+            log_warn "未找到 SDK 源码目录，检测到基础镜像已安装 linkwork_agent_sdk，跳过安装"
+            return 0
+        fi
+
+        log_error "SDK 源码目录不存在: ${SDK_SRC}"
+        log_error "请将 linkwork-agent-sdk 源码放置到固定目录，或通过 SDK_SRC 指定路径"
+        return 1
+    fi
+
+    if [[ ! -f "${SDK_SRC}/pyproject.toml" ]]; then
+        if ${python_cmd} -c "import linkwork_agent_sdk" >/dev/null 2>&1; then
+            log_warn "${SDK_SRC}/pyproject.toml 不存在，但基础镜像已安装 linkwork_agent_sdk，跳过安装"
+            return 0
+        fi
+
+        log_error "${SDK_SRC}/pyproject.toml 不存在"
         return 1
     fi
 
@@ -320,7 +344,55 @@ install_sdk() {
         return 1
     }
 
-    log_success "momo-agent-sdk 安装完成"
+    log_success "linkwork-agent-sdk 安装完成"
+    return 0
+}
+
+# 修补 linkwork_agent_sdk 运行时模型选择：
+# 当 config.json/env 提供 ANTHROPIC_MODEL 时，优先使用该完整模型名，
+# 避免 claude-sdk 将 "sonnet" 展开为不被 LiteLLM 识别的别名。
+patch_sdk_runtime_model_override() {
+    local python_cmd="python3.12"
+
+    if ! command_exists "${python_cmd}"; then
+        log_warn "未找到 ${python_cmd}，跳过 SDK runtime model 补丁"
+        return 0
+    fi
+
+    local engine_file
+    engine_file="$(${python_cmd} - <<'PY'
+import importlib
+try:
+    m = importlib.import_module("linkwork_agent_sdk.engine.agent_engine")
+    print(getattr(m, "__file__", ""))
+except Exception:
+    print("")
+PY
+)"
+
+    if [[ -z "${engine_file}" || ! -f "${engine_file}" ]]; then
+        log_warn "未定位到 linkwork_agent_sdk.engine.agent_engine，跳过补丁"
+        return 0
+    fi
+
+    if grep -q 'resolved_env.get("ANTHROPIC_MODEL")' "${engine_file}"; then
+        log_info "SDK runtime model 补丁已存在，跳过"
+        return 0
+    fi
+
+    if ! grep -q '"model": self._config.claude_settings.model,' "${engine_file}"; then
+        log_warn "未匹配到预期模型配置行，跳过 SDK runtime model 补丁: ${engine_file}"
+        return 0
+    fi
+
+    sed -i \
+        's/"model": self._config.claude_settings.model,/"model": (resolved_env.get("ANTHROPIC_MODEL") if resolved_env and resolved_env.get("ANTHROPIC_MODEL") else self._config.claude_settings.model),/' \
+        "${engine_file}" || {
+        log_error "应用 SDK runtime model 补丁失败: ${engine_file}"
+        return 1
+    }
+
+    log_success "SDK runtime model 补丁已应用: ${engine_file}"
     return 0
 }
 
@@ -1209,14 +1281,27 @@ deploy_start_scripts() {
 
     local deploy_dir="/opt/agent"
     mkdir -p "${deploy_dir}"
+    local scripts=("start-single.sh" "start-dual.sh" "ai_employee.py")
 
     if [[ ! -d "${START_SCRIPTS_SRC}" ]]; then
+        local existing=0
+        for script in "${scripts[@]}"; do
+            if [[ -f "${deploy_dir}/${script}" ]]; then
+                chmod 0755 "${deploy_dir}/${script}" || true
+                chown root:root "${deploy_dir}/${script}" || true
+                ((existing++))
+            fi
+        done
+        if [[ ${existing} -eq ${#scripts[@]} ]]; then
+            log_warn "未找到 ${START_SCRIPTS_SRC}，使用基础镜像已存在的启动脚本"
+            return 0
+        fi
+
         log_error "启动脚本目录不存在: ${START_SCRIPTS_SRC}"
         log_error "请将 start-single.sh/start-dual.sh/ai_employee.py 放置到固定目录，或通过 START_SCRIPTS_SRC 指定路径"
         return 1
     fi
 
-    local scripts=("start-single.sh" "start-dual.sh" "ai_employee.py")
     local deployed=0
 
     for script in "${scripts[@]}"; do
@@ -1455,6 +1540,11 @@ main() {
         exit 1
     fi
 
+    if ! patch_sdk_runtime_model_override; then
+        log_error "SDK runtime model 补丁失败"
+        exit 1
+    fi
+
     if ! setup_agent_user; then
         log_error "agent 用户创建失败"
         exit 1
@@ -1540,7 +1630,7 @@ main() {
     log_info "清理构建临时文件..."
     rm -rf /tmp/cedar-policies /tmp/cedar-policies-download
 
-    # 仅清理 /tmp 回退路径，避免误删固定资产目录（如 /opt/momo-agent-build）
+    # 仅清理 /tmp 回退路径，避免误删固定资产目录（如 /opt/linkwork-agent-build）
     for cleanup_dir in "${ZZD_BIN_SRC}" "${SDK_SRC}" "${START_SCRIPTS_SRC}"; do
         if [[ "${cleanup_dir}" == /tmp/* ]]; then
             rm -rf "${cleanup_dir}"

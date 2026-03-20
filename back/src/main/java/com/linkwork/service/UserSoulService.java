@@ -6,13 +6,16 @@ import com.linkwork.mapper.UserSoulMapper;
 import com.linkwork.model.dto.UserSoulResponse;
 import com.linkwork.model.dto.UserSoulUpsertRequest;
 import com.linkwork.model.entity.UserSoulEntity;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserSoulService {
 
     private static final int MAX_CONTENT_LENGTH = 8000;
@@ -114,11 +117,30 @@ public class UserSoulService {
         if (!StringUtils.hasText(userId)) {
             throw new IllegalArgumentException("用户未登录或登录态失效");
         }
-        return userSoulMapper.selectOne(new LambdaQueryWrapper<UserSoulEntity>()
-                .eq(UserSoulEntity::getUserId, userId)
-                .orderByDesc(UserSoulEntity::getUpdatedAt)
-                .orderByDesc(UserSoulEntity::getId)
-                .last("limit 1"));
+        try {
+            return userSoulMapper.selectOne(new LambdaQueryWrapper<UserSoulEntity>()
+                    .eq(UserSoulEntity::getUserId, userId)
+                    .orderByDesc(UserSoulEntity::getUpdatedAt)
+                    .orderByDesc(UserSoulEntity::getId)
+                    .last("limit 1"));
+        } catch (BadSqlGrammarException ex) {
+            if (isCompatColumnMismatch(ex)) {
+                log.warn("UserSoul schema mismatch detected, fallback to compat query: userId={}, err={}",
+                        userId, ex.getMessage());
+                return userSoulMapper.selectLatestCompatByUserId(userId);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isCompatColumnMismatch(BadSqlGrammarException ex) {
+        String msg = ex.getMessage();
+        return msg != null
+                && (msg.contains("Unknown column 'content'")
+                || msg.contains("Unknown column 'preset_id'")
+                || msg.contains("Unknown column 'version'")
+                || msg.contains("Unknown column 'updater_id'")
+                || msg.contains("Unknown column 'updater_name'"));
     }
 
     private String normalizeContent(String content) {

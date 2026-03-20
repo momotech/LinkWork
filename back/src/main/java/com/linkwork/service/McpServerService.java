@@ -236,7 +236,7 @@ public class McpServerService extends ServiceImpl<McpServerMapper, McpServerEnti
      */
     public Map<String, Object> getHealthStatus(String userId) {
         if (!StringUtils.hasText(userId)) {
-            return Map.of("items", List.of(), "checkedAt", LocalDateTime.now());
+            return Map.of("items", List.of(), "checkedAt", LocalDateTime.now().toString());
         }
         LambdaQueryWrapper<McpServerEntity> wrapper = new LambdaQueryWrapper<>();
         if (!adminAccessService.isAdmin(userId)) {
@@ -249,7 +249,7 @@ public class McpServerService extends ServiceImpl<McpServerMapper, McpServerEnti
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("items", items);
-        result.put("checkedAt", LocalDateTime.now());
+        result.put("checkedAt", LocalDateTime.now().toString());
         return result;
     }
 
@@ -508,12 +508,12 @@ public class McpServerService extends ServiceImpl<McpServerMapper, McpServerEnti
         map.put("consecutiveFailures", entity.getConsecutiveFailures());
         map.put("version", entity.getVersion());
         map.put("tags", entity.getTags());
-        map.put("lastHealthAt", entity.getLastHealthAt());
+        map.put("lastHealthAt", formatDateTime(entity.getLastHealthAt()));
         map.put("configJson", entity.getConfigJson());
         map.put("creatorId", entity.getCreatorId());
         map.put("creatorName", entity.getCreatorName());
-        map.put("createdAt", entity.getCreatedAt());
-        map.put("updatedAt", entity.getUpdatedAt());
+        map.put("createdAt", formatDateTime(entity.getCreatedAt()));
+        map.put("updatedAt", formatDateTime(entity.getUpdatedAt()));
 
         return map;
     }
@@ -635,9 +635,13 @@ public class McpServerService extends ServiceImpl<McpServerMapper, McpServerEnti
         map.put("type", entity.getType());
         map.put("status", coerceStatus(entity.getStatus()));
         map.put("latencyMs", entity.getHealthLatencyMs());
-        map.put("lastHealthAt", entity.getLastHealthAt());
+        map.put("lastHealthAt", formatDateTime(entity.getLastHealthAt()));
         map.put("consecutiveFailures", entity.getConsecutiveFailures());
         map.put("healthMessage", entity.getHealthMessage());
         return map;
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? null : value.toString();
     }
 }

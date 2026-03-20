@@ -92,11 +92,52 @@ public class ImageBuildConfig {
      * 构建上下文临时目录
      */
     private String buildContextDir = "/tmp/docker-build";
+
+    /**
+     * 是否启用本地镜像自动同步到 Kind 节点（仅 K8s + 未配置镜像仓库时生效）
+     */
+    private boolean autoLoadToKind = true;
+
+    /**
+     * 指定 Kind 集群名；为空时自动发现所有 Kind 集群节点
+     */
+    private String kindClusterName = "";
+
+    /**
+     * Kind 节点镜像导入超时时间（秒）
+     */
+    private int kindLoadTimeout = 600;
+
+    /**
+     * 是否启用本地镜像定期清理
+     */
+    private boolean localCleanupEnabled = true;
+
+    /**
+     * 本地构建镜像保留小时数（超过后尝试删除，运行中镜像会跳过）
+     */
+    private int localImageRetentionHours = 24;
+
+    /**
+     * 本地镜像清理 Cron（默认每小时第 40 分钟）
+     */
+    private String localCleanupCron = "0 40 * * * *";
+
+    /**
+     * 是否在 Kind 节点执行未使用镜像 prune
+     */
+    private boolean kindPruneEnabled = true;
     
     /**
      * SDK 仓库 HTTPS 地址（用于镜像构建阶段克隆）
      */
     private String sdkRepoUrl = "";
+
+    /**
+     * 构建资产来源镜像（当 sdkRepoUrl 未配置时使用）
+     * 用于从已有镜像中复制 zzd/start-scripts/linkwork_agent_sdk
+     */
+    private String assetSourceImage = "";
     
     /**
      * SDK 仓库克隆分支（默认 test122）
@@ -115,13 +156,13 @@ public class ImageBuildConfig {
     
     /**
      * SDK 源码在镜像中的目标路径
-     * 从 SDK 仓库的 momo-agent-sdk/ 目录拷贝
+     * 从 SDK 仓库的 linkwork-agent-sdk/ 目录拷贝
      */
-    private String sdkSourcePath = "/opt/momo-agent-build/sdk-source";
+    private String sdkSourcePath = "/opt/linkwork-agent-build/sdk-source";
     
     /**
      * zzd 二进制文件在镜像中的目标路径
      * 从 SDK 仓库的 docker/agent/zzd/ 目录拷贝
      */
-    private String zzdBinariesPath = "/opt/momo-agent-build/zzd-binaries";
+    private String zzdBinariesPath = "/opt/linkwork-agent-build/zzd-binaries";
 }

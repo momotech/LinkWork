@@ -1,11 +1,9 @@
 package com.linkwork.model.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.linkwork.model.enums.TaskStatus;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -42,8 +40,7 @@ public class TaskResponse {
 
     private String creator;
 
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
-    private LocalDateTime createdAt;
+    private String createdAt;
 
     private Usage usage;
 

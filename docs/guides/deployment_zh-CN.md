@@ -154,8 +154,10 @@ LinkWork 采用「一岗位一镜像」机制，岗位构建流程：
 
 1. **管理员配置岗位** — 选择 Skills、MCP 工具、安全策略、资源配额
 2. **触发镜像构建** — server 动态生成 Dockerfile，执行 `docker build`
-3. **推送到 Harbor** — 构建完成后自动推送到配置的镜像仓库
-4. **K8s 拉取运行** — 任务调度时，K8s 从 Harbor 拉取对应岗位镜像创建 Pod
+3. **镜像分发（二选一）**
+   - 配置了 `imageRegistry`：构建完成后推送到远程仓库
+   - 未配置 `imageRegistry`：仅保留本地镜像，并自动把“当前构建镜像”同步到 Kind 节点（不会全量同步主机所有镜像）
+4. **K8s 拉取运行** — 任务调度时，从配置的镜像来源拉取对应岗位镜像创建 Pod
 
 镜像命名规则：`{registry}/service-{serviceId}-agent:{serviceId}-{timestamp}`
 
@@ -164,6 +166,25 @@ LinkWork 采用「一岗位一镜像」机制，岗位构建流程：
 - Python 3.12、Node.js 24、Java 21、Go 1.22
 - git、curl、jq 等常用工具
 - Claude CLI、uv/uvx 等 AI 开发工具
+
+### 本地镜像运维动作（Kind）
+
+后端在本地镜像模式下会自动执行镜像同步与清理，建议在环境变量中显式配置：
+
+```bash
+LINKWORK_BUILD_LOCAL_LOAD_ENABLED=true
+LINKWORK_BUILD_KIND_CLUSTER_NAME=shared-dev   # 可选，不填则自动发现
+IMAGE_LOCAL_CLEANUP_ENABLED=true
+IMAGE_LOCAL_RETENTION_HOURS=24
+IMAGE_LOCAL_CLEANUP_CRON="0 40 * * * *"       # 每小时第 40 分钟
+IMAGE_KIND_PRUNE_ENABLED=true
+```
+
+并支持手动触发一次运维动作（立即执行，不等 cron）：
+
+```bash
+curl -X POST http://<linkwork-server>/api/v1/build/ops/local-image-maintenance
+```
 
 ---
 

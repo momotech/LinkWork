@@ -4,6 +4,7 @@ import com.linkwork.common.ApiResponse;
 import com.linkwork.context.UserContext;
 import com.linkwork.context.UserInfo;
 import com.linkwork.service.AuthService;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -35,7 +36,7 @@ public class AuthController {
      * POST /api/v1/auth/login
      */
     @PostMapping("/login")
-    public ApiResponse<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+    public ApiResponse<Map<String, Object>> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         log.info("登录请求");
 
         // 验证密码
@@ -46,6 +47,12 @@ public class AuthController {
 
         // 生成 Token
         String token = authService.generateToken("robot-user");
+
+        Cookie cookie = new Cookie(COOKIE_NAME, token);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setMaxAge(86400);
+        response.addCookie(cookie);
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
@@ -128,7 +135,10 @@ public class AuthController {
     }
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class LoginRequest {
+        private String username;
+
         @NotBlank(message = "密码不能为空")
         private String password;
     }

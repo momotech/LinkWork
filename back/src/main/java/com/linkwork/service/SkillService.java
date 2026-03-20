@@ -677,11 +677,11 @@ public class SkillService extends ServiceImpl<SkillMapper, SkillEntity> {
         map.put("isPublic", entity.getIsPublic());
         map.put("branchName", entity.getBranchName());
         map.put("latestCommit", entity.getLatestCommit());
-        map.put("lastSyncedAt", entity.getLastSyncedAt());
+        map.put("lastSyncedAt", formatDateTime(entity.getLastSyncedAt()));
         map.put("creatorId", entity.getCreatorId());
         map.put("creatorName", entity.getCreatorName());
-        map.put("createdAt", entity.getCreatedAt());
-        map.put("updatedAt", entity.getUpdatedAt());
+        map.put("createdAt", formatDateTime(entity.getCreatedAt()));
+        map.put("updatedAt", formatDateTime(entity.getUpdatedAt()));
         return map;
     }
 
@@ -697,8 +697,12 @@ public class SkillService extends ServiceImpl<SkillMapper, SkillEntity> {
         map.put("status", entity.getStatus());
         map.put("isPublic", entity.getIsPublic());
         map.put("skillNo", entity.getSkillNo());
-        map.put("createdAt", entity.getCreatedAt());
-        map.put("updatedAt", entity.getUpdatedAt());
+        map.put("createdAt", formatDateTime(entity.getCreatedAt()));
+        map.put("updatedAt", formatDateTime(entity.getUpdatedAt()));
         return map;
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? null : value.toString();
     }
 }

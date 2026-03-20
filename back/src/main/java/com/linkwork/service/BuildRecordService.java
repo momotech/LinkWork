@@ -211,8 +211,8 @@ public class BuildRecordService extends ServiceImpl<BuildRecordMapper, BuildReco
         map.put("creatorId", entity.getCreatorId());
         map.put("creatorName", entity.getCreatorName());
         map.put("logUrl", entity.getLogUrl());
-        map.put("createdAt", entity.getCreatedAt());
-        map.put("updatedAt", entity.getUpdatedAt());
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;
     }
 }
