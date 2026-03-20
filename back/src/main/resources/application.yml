@@ -1,0 +1,352 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: robot-web-service
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  # MySQL 数据库配置
+  datasource:
+    url: jdbc:mysql://host.docker.internal:3307/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+    username: robot
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      connection-timeout: 30000
+
+  # Redis 配置（通过 Docker 网络直连 momo-redis 容器）
+  data:
+    redis:
+      host: momo-redis
+      port: 6379
+
+# MyBatis Plus 配置
+mybatis-plus:
+  mapper-locations: classpath:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: isDeleted
+      logic-delete-value: true
+      logic-not-delete-value: false
+
+logging:
+  level:
+    com.momo.robot: DEBUG
+    org.springframework.web: INFO
+    com.baomidou.mybatisplus: DEBUG
+
+# 认证配置
+robot:
+  litellm:
+    base-url: http://172.18.228.32:4000
+    api-key: sk-48sbQpOd2cCeXW1q3H4TBQ
+    default-chat-model: openrouter/anthropic/claude-sonnet-4.5
+  auth:
+    # 访问密码（BCrypt 哈希）
+    password: ${ROBOT_AUTH_PASSWORD:}
+    # JWT 密钥（至少 32 字符）
+    jwt-secret: ${ROBOT_AUTH_JWT_SECRET:}
+    # JWT 过期时间（毫秒），默认 24 小时
+    jwt-expiration: 86400000
+  # 任务调度配置（与 worker 联调对齐）
+  dispatch:
+    workstation-id: ${DISPATCH_WORKSTATION_ID:test-post-001}
+    log-stream-prefix: logs
+    approval-key-prefix: approval
+  cron:
+    enabled: ${CRON_ENABLED:true}
+    scan-interval-ms: ${CRON_SCAN_INTERVAL_MS:60000}
+    dispatch-lead-ms: ${CRON_DISPATCH_LEAD_MS:180000}
+    max-jobs-per-user: ${CRON_MAX_JOBS_PER_USER:50}
+    max-jobs-per-role: ${CRON_MAX_JOBS_PER_ROLE:100}
+    max-runs-per-job: ${CRON_MAX_RUNS_PER_JOB:100}
+    lock-key: ${CRON_LOCK_KEY:lock:cron:scanner}
+    lock-ttl-seconds: ${CRON_LOCK_TTL_SECONDS:55}
+  gitlab:
+    base-url: ${GITLAB_BASE_URL:https://git.wemomo.com}
+    auth-base-url: ${GITLAB_AUTH_BASE_URL:${robot.gitlab.base-url}}
+    client-id: ${GITLAB_CLIENT_ID:afc81060f89b3e664bbaa2772baf399f232ba4a207b0a4f995d5f82788acdc08}
+    client-secret: ${GITLAB_CLIENT_SECRET:}
+    redirect-uri: ${GITLAB_REDIRECT_URI:http://172.18.228.32:3003/auth/callback/gitlab}
+  zzd:
+    # zzd 服务调用 /api/v1/tasks/{taskId}/git-token 时使用的服务身份令牌
+    api-server-token: ${ZZD_API_SERVER_TOKEN:}
+  output-estimator:
+    llm:
+      enabled: ${TASK_OUTPUT_ESTIMATOR_ENABLED:true}
+      gateway-url: ${TASK_OUTPUT_ESTIMATOR_GATEWAY_URL:${robot.litellm.base-url}/v1/chat/completions}
+      model: ${TASK_OUTPUT_ESTIMATOR_MODEL:${robot.litellm.default-chat-model}}
+      max-tokens: ${TASK_OUTPUT_ESTIMATOR_MAX_TOKENS:256}
+      stream: ${TASK_OUTPUT_ESTIMATOR_STREAM:true}
+      connect-timeout-ms: ${TASK_OUTPUT_ESTIMATOR_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${TASK_OUTPUT_ESTIMATOR_READ_TIMEOUT_MS:12000}
+      # 固定 LiteLLM Virtual Key（sk- 开头）
+      auth-token: ${TASK_OUTPUT_ESTIMATOR_AUTH_TOKEN:${robot.litellm.api-key}}
+      x-litellm-api-key: ${TASK_OUTPUT_ESTIMATOR_X_LITELLM_API_KEY:${robot.litellm.api-key}}
+  model-registry:
+    gateway-url: ${MODEL_REGISTRY_GATEWAY_URL:${robot.litellm.base-url}/v1/models}
+    timeout-ms: ${MODEL_REGISTRY_TIMEOUT_MS:5000}
+    auth-token: ${MODEL_REGISTRY_AUTH_TOKEN:${robot.litellm.api-key}}
+    x-litellm-api-key: ${MODEL_REGISTRY_X_LITELLM_API_KEY:${robot.litellm.api-key}}
+  billing:
+    gateway-url-template: ${BILLING_GATEWAY_URL_TEMPLATE:http://ai-agent-gateway.momo.com/v1/billing/tasks/{taskId}}
+    timeout-ms: ${BILLING_TIMEOUT_MS:3000}
+    sync-retries: ${BILLING_SYNC_RETRIES:3}
+    retry-interval-ms: ${BILLING_RETRY_INTERVAL_MS:200}
+  task-share:
+    secret: ${TASK_SHARE_SECRET:${robot.auth.jwt-secret}}
+    base-url: ${TASK_SHARE_BASE_URL:https://robot.wemomo.com}
+    default-expire-hours: ${TASK_SHARE_DEFAULT_EXPIRE_HOURS:24}
+    max-expire-hours: ${TASK_SHARE_MAX_EXPIRE_HOURS:168}
+  skills:
+    repo-url: ${SKILLS_REPO_URL:}
+    deploy-token: ${SKILLS_DEPLOY_TOKEN:}
+    project-id: ${SKILLS_PROJECT_ID:100001744}
+  weekly-report:
+    repo-path: ${WEEKLY_REPORT_REPO_PATH:}
+    llm:
+      enabled: ${WEEKLY_REPORT_LLM_ENABLED:true}
+      gateway-url: ${WEEKLY_REPORT_LLM_GATEWAY_URL:${robot.litellm.base-url}/v1/chat/completions}
+      model: ${WEEKLY_REPORT_LLM_MODEL:${robot.litellm.default-chat-model}}
+      max-tokens: ${WEEKLY_REPORT_LLM_MAX_TOKENS:900}
+      stream: ${WEEKLY_REPORT_LLM_STREAM:true}
+      connect-timeout-ms: ${WEEKLY_REPORT_LLM_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${WEEKLY_REPORT_LLM_READ_TIMEOUT_MS:12000}
+      auth-token: ${WEEKLY_REPORT_LLM_AUTH_TOKEN:${robot.litellm.api-key}}
+      x-litellm-api-key: ${WEEKLY_REPORT_LLM_X_LITELLM_API_KEY:${robot.litellm.api-key}}
+
+# 调度服务配置
+schedule:
+  cluster:
+    namespace: linkwork-dev
+    scheduler-name: volcano
+    kubeconfig-path: /root/.kube/config
+  
+  queue:
+    prefix: ai-worker
+
+  images:
+    registry: docker.momo.com
+    # Agent 基础镜像（本地构建用，固定 digest 保证一致性）
+    agent: 10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777
+    # Runner 默认镜像（K8s 运行时使用内部仓库镜像）
+    runner: ${RUNNER_IMAGE:10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777}
+  
+  # Agent 启动脚本配置（main.py 从链接下载，启动 agent+executor）
+  agent-bootstrap:
+    main-py-url: ${MAIN_PY_URL:}
+  
+  # 文件放置配置
+  file-placement:
+    # token 文件（仅 executor 可访问）
+    token-path: /workspace/.credentials/token
+    token-dir-mode: "700"
+    token-file-mode: "600"
+    token-owner: executor:executor
+    # SSH 密钥（agent 和 executor 都可访问）
+    ssh-path: /workspace/.ssh
+    ssh-dir-mode: "755"
+    ssh-key-mode: "600"
+    ssh-pub-mode: "644"
+  
+  network:
+    api-base-url: http://api-gateway.ai-worker.svc:8080
+    ws-base-url: ws://ws-gateway.ai-worker.svc:8080
+    llm-gateway-url: http://llm-gateway.ai-worker.svc:8080
+    redis-url: ${REDIS_URL:redis://10.136.55.3:6379}
+  
+  ssh:
+    port: 22
+    key-type: ed25519
+  
+  default-resources:
+    agent:
+      cpu-request: "1"
+      cpu-limit: "2"
+      memory-request: 2Gi
+      memory-limit: 4Gi
+    runner:
+      cpu-request: "1"
+      cpu-limit: "4"
+      memory-request: 2Gi
+      memory-limit: 8Gi
+  
+  # OSS 挂载配置（需配合节点级 ossfs 三路挂载）
+  # 节点级 ossfs 挂载:
+  #   oss://robot-agent-files/system/      → {host-path}/system
+  #   oss://robot-agent-files/user-files/  → {host-path}/user-files
+  #   oss://robot-agent-files/workstation/ → {host-path}/workstation
+  oss-mount:
+    enabled: ${OSS_MOUNT_ENABLED:true}
+    host-path: /mnt/oss/robot-agent-files        # 三个 ossfs 挂载点的公共父目录
+    mount-path: /data/oss/robot                  # 容器内产出物挂载根 (system/{wsId})
+    read-only: false                             # 产出物挂载是否只读
+    user-files-mount-path: /mnt/user-files       # 容器内个人空间挂载根
+    workstation-mount-path: /mnt/workstation     # 容器内岗位空间挂载根
+  
+  pod-mode-rules:
+    default-mode: SIDECAR
+    overrides:
+      data_analysis: ALONE
+      ops: SIDECAR
+      development: SIDECAR
+
+# 镜像构建配置
+# 注意：仅构建 Agent 镜像，Runner 由运行时 agent 启动
+image-build:
+  # 是否启用镜像构建阶段（true: 构建新镜像, false: 直接使用基础镜像）
+  enabled: true
+  
+  # 是否推送镜像到仓库（true: 构建后推送, false: 只构建不推送）
+  push-enabled: true
+  
+  # 镜像拉取策略
+  # - Always: 总是从仓库拉取
+  # - IfNotPresent: 本地有则不拉取
+  # - Never: 从不拉取，要求镜像必须已在节点上
+  image-pull-policy: ${IMAGE_PULL_POLICY:IfNotPresent}
+  
+  # Docker 连接配置
+  docker-host: ${DOCKER_HOST:unix:///var/run/docker.sock}
+  
+  # 默认 Agent 基础镜像（K8s 模式，固定 digest 保证一致性）
+  default-agent-base-image: ${DEFAULT_AGENT_BASE_IMAGE:10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777}
+  
+  # Compose 模式基础镜像（用户本地构建使用）
+  compose-base-image: ${COMPOSE_BASE_IMAGE:docker.momo.com/osbase/rockylinux9:9.4}
+  
+  # 镜像仓库配置
+  # K8s 模式下构建的镜像会推送到此仓库
+  # 注意：直接配置，不依赖环境变量（避免环境变量为空时覆盖默认值）
+  registry: 10.30.107.146/robot
+  registry-username: ${IMAGE_REGISTRY_USERNAME:}
+  registry-password: ${IMAGE_REGISTRY_PASSWORD:}
+  
+  # K8s 拉取私有镜像的 Secret 名称
+  image-pull-secret: ${IMAGE_PULL_SECRET:robot-registry-secret}
+  
+  # 构建脚本路径（用户补充内容）
+  build-script-path: ${BUILD_SCRIPT_PATH:/opt/scripts/build.sh}
+  
+  # 入口点脚本
+  entrypoint-script: /entrypoint.sh
+  
+  # 构建超时时间（秒）- build.sh 含 dnf 安装，首次构建需要较长时间
+  build-timeout: ${BUILD_TIMEOUT:900}
+  
+  # 构建上下文临时目录
+  build-context-dir: ${BUILD_CONTEXT_DIR:/tmp/docker-build}
+  
+  # SDK 仓库配置（镜像构建阶段克隆，拷贝 momo-agent-sdk 和 docker/agent/zzd 到镜像中）
+  sdk-repo-url: ${SDK_REPO_URL:}
+  sdk-repo-branch: ${SDK_REPO_BRANCH:}
+  sdk-repo-username: ${SDK_REPO_USERNAME:}
+  sdk-repo-password: ${SDK_REPO_PASSWORD:}
+  sdk-source-path: ${SDK_SOURCE_PATH:/opt/momo-agent-build/sdk-source}
+  zzd-binaries-path: ${ZZD_BINARIES_PATH:/opt/momo-agent-build/zzd-binaries}
+
+# NFS 存储配置（替代原 OSS）
+# 后续更换 NFS 服务器地址只需重新 mount + 修改 NFS_STORAGE_BASE_PATH 环境变量，无需改代码
+nfs:
+  storage:
+    base-path: ${NFS_STORAGE_BASE_PATH:/mnt/oss/robot-agent-files}
+    download-base-url: /api/v1/files
+    task-output-base-url: /api/v1/task-outputs
+
+# Memory 服务配置
+memory:
+  enabled: ${MEMORY_ENABLED:true}
+  milvus:
+    uri: ${MILVUS_URI:http://milvus:19530}
+    token: ${MILVUS_TOKEN:}
+  embedding:
+    model: ${MEMORY_EMBEDDING_MODEL:text-embedding-3-small}
+    dimension: ${MEMORY_EMBEDDING_DIMENSION:1536}
+  index:
+    max-chunk-size: 1500
+    overlap-lines: 2
+    queue-key: memory:index:jobs
+  oss-mount-path: ${MEMORY_OSS_MOUNT_PATH:/data/oss}
+
+# 构建队列配置
+build-queue:
+  # 是否启用队列功能（false 时直接异步执行，兼容旧行为）
+  enabled: true
+  # CPU 使用率阈值 (0.0-1.0)，低于此值才允许新构建
+  cpu-threshold: ${BUILD_QUEUE_CPU_THRESHOLD:0.7}
+  # 内存使用率阈值 (0.0-1.0)，低于此值才允许新构建
+  memory-threshold: ${BUILD_QUEUE_MEMORY_THRESHOLD:0.7}
+  # 硬性并发上限（即使资源充足也不超过此值）
+  max-concurrent: ${BUILD_QUEUE_MAX_CONCURRENT:2}
+  # 队列最大容量
+  max-queue-size: ${BUILD_QUEUE_MAX_SIZE:50}
+  # 构建超时时间（秒）
+  task-timeout: ${BUILD_QUEUE_TASK_TIMEOUT:1200}
+  # 资源检查间隔（毫秒）
+  check-interval: ${BUILD_QUEUE_CHECK_INTERVAL:1000}
+  # 残留文件清理阈值（小时）
+  stale-context-hours: ${BUILD_QUEUE_STALE_CONTEXT_HOURS:1}
+
+# LinkWork Starter 配置（统一 linkwork.agent.* 前缀）
+linkwork:
+  agent:
+    storage:
+      enabled: ${LINKWORK_AGENT_STORAGE_ENABLED:true}
+      provider: ${LINKWORK_AGENT_STORAGE_PROVIDER:nfs}
+      nfs:
+        base-path: ${LINKWORK_AGENT_STORAGE_NFS_BASE_PATH:${nfs.storage.base-path:/mnt/oss/robot-agent-files}}
+        mount-path: ${LINKWORK_AGENT_STORAGE_NFS_MOUNT_PATH:/workspace}
+        read-only: ${LINKWORK_AGENT_STORAGE_NFS_READ_ONLY:false}
+        uid: ${LINKWORK_AGENT_STORAGE_NFS_UID:1000}
+        gid: ${LINKWORK_AGENT_STORAGE_NFS_GID:1000}
+    skill:
+      enabled: ${LINKWORK_AGENT_SKILL_ENABLED:true}
+      provider: ${LINKWORK_AGENT_SKILL_PROVIDER:gitlab}
+      retry-times: ${LINKWORK_AGENT_SKILL_RETRY_TIMES:2}
+      retry-backoff-ms: ${LINKWORK_AGENT_SKILL_RETRY_BACKOFF_MS:200}
+      cache-ttl-ms: ${LINKWORK_AGENT_SKILL_CACHE_TTL_MS:10000}
+      gitlab:
+        url: ${LINKWORK_AGENT_SKILL_GITLAB_URL:${robot.gitlab.base-url:https://git.wemomo.com}}
+        token: ${LINKWORK_AGENT_SKILL_GITLAB_TOKEN:}
+        repo-url: ${LINKWORK_AGENT_SKILL_GITLAB_REPO_URL:${robot.skills.repo-url:}}
+        deploy-token: ${LINKWORK_AGENT_SKILL_GITLAB_DEPLOY_TOKEN:${robot.skills.deploy-token:}}
+        project-id: ${LINKWORK_AGENT_SKILL_GITLAB_PROJECT_ID:${robot.skills.project-id:}}
+        branch: ${LINKWORK_AGENT_SKILL_GITLAB_BRANCH:main}
+        root-path: ${LINKWORK_AGENT_SKILL_GITLAB_ROOT_PATH:skills}
+    mcp:
+      enabled: ${LINKWORK_AGENT_MCP_ENABLED:true}
+      mode: ${LINKWORK_AGENT_MCP_MODE:gateway}
+      gateway:
+        agent-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_AGENT_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
+        proxy-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_PROXY_BASE_URL:http://192.168.100.1:38090}
+      client:
+        connect-timeout-ms: ${LINKWORK_AGENT_MCP_CONNECT_TIMEOUT_MS:5000}
+        read-timeout-ms: ${LINKWORK_AGENT_MCP_READ_TIMEOUT_MS:35000}
+      security:
+        encryption-key: ${LINKWORK_AGENT_MCP_ENCRYPTION_KEY:${robot.mcp.encryption-key:}}
+    sandbox:
+      provider: ${LINKWORK_AGENT_SANDBOX_PROVIDER:${LINKWORK_SANDBOX_PROVIDER:k8s-volcano}}
+      k8s:
+        namespace: ${LINKWORK_AGENT_SANDBOX_K8S_NAMESPACE:${K8S_NAMESPACE:linkwork-dev}}
+        scheduler-name: ${LINKWORK_AGENT_SANDBOX_K8S_SCHEDULER_NAME:${schedule.cluster.scheduler-name:volcano}}
+        queue-name: ${LINKWORK_AGENT_SANDBOX_K8S_QUEUE_NAME:default}
+        kubeconfig-path: ${LINKWORK_AGENT_SANDBOX_K8S_KUBECONFIG_PATH:${KUBECONFIG_PATH:/root/.kube/config}}
+        default-agent-image: ${LINKWORK_AGENT_SANDBOX_K8S_DEFAULT_AGENT_IMAGE:${schedule.images.agent:}}
+        default-runner-image: ${LINKWORK_AGENT_SANDBOX_K8S_DEFAULT_RUNNER_IMAGE:${schedule.images.runner:}}
+        default-image-pull-policy: ${LINKWORK_AGENT_SANDBOX_K8S_IMAGE_PULL_POLICY:${image-build.image-pull-policy:IfNotPresent}}
+        registry: ${LINKWORK_AGENT_SANDBOX_K8S_REGISTRY:${image-build.registry:}}
+        registry-username: ${LINKWORK_AGENT_SANDBOX_K8S_REGISTRY_USERNAME:${image-build.registry-username:}}
+        registry-password: ${LINKWORK_AGENT_SANDBOX_K8S_REGISTRY_PASSWORD:${image-build.registry-password:}}

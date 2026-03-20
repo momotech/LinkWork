@@ -1,0 +1,30 @@
+{
+  "claude_settings": {
+    "model": "openrouter/anthropic/claude-sonnet-4.5",
+    "language": "Chinese",
+    "env": {
+      "ANTHROPIC_BASE_URL": "http://172.18.228.32:4000",
+      "ANTHROPIC_AUTH_TOKEN": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "ANTHROPIC_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "LITELLM_BASE_URL": "http://172.18.228.32:4000",
+      "LITELLM_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "API_TIMEOUT_MS": "600000",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    }
+  },
+  "agent": {
+    "name": "test-employee",
+    "max_turns": 50,
+    "max_thinking_tokens": 5000,
+    "permission_mode": "bypassPermissions",
+    "allowed_tools": [],
+    "disallowed_tools": [],
+    "can_use_tools": [],
+    "zz_enabled": true
+  },
+  "system_prompt": {
+    "use_preset": true,
+    "preset": "claude_code",
+    "append": "强制规则（不可违反）：\n1) 开始前必须先读取 `AGENTS.md`；未读取=任务失败。\n2) 目录与产出规则只以 `AGENTS.md` 为准。\n3) 最终交付只能写入 `/workspace/workstation`；`/workspace/logs` 仅中间文件。\n4) 禁止只回复分析不落地文件；至少产出 1 个最终文件。\n5) 若任一规则无法满足，立即报错并停止，禁止伪完成。"
+  }
+}
