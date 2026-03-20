@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * PodGroup Spec 生成器
  */
-@Component
+@Component("legacyPodGroupSpecGenerator")
 @Slf4j
 public class PodGroupSpecGenerator {
     

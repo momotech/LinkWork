@@ -33,7 +33,7 @@ import java.util.List;
  *   - svc-{serviceId}-agent-config: config.json → /opt/agent/config.json
  *   - runner-start-script: start-runner.sh → /opt/runner/start-runner.sh
  */
-@Component
+@Component("legacyPodSpecGenerator")
 @Slf4j
 public class PodSpecGenerator {
 
