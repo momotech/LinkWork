@@ -265,12 +265,7 @@ image-build:
   local-cleanup-cron: ${IMAGE_LOCAL_CLEANUP_CRON:0 40 * * * *}
   kind-prune-enabled: ${IMAGE_KIND_PRUNE_ENABLED:true}
   
-  # SDK 仓库配置（镜像构建阶段克隆，拷贝 linkwork-agent-sdk 和 docker/agent/zzd 到镜像中）
-  sdk-repo-url: ${SDK_REPO_URL:}
-  asset-source-image: ${IMAGE_BUILD_ASSET_SOURCE_IMAGE:}
-  sdk-repo-branch: ${SDK_REPO_BRANCH:}
-  sdk-repo-username: ${SDK_REPO_USERNAME:}
-  sdk-repo-password: ${SDK_REPO_PASSWORD:}
+  # 构建资产路径（来自项目内置 build-assets）
   sdk-source-path: ${SDK_SOURCE_PATH:/opt/linkwork-agent-build/sdk-source}
   zzd-binaries-path: ${ZZD_BINARIES_PATH:/opt/linkwork-agent-build/zzd-binaries}
 

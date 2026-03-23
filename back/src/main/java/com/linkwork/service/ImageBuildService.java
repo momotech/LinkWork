@@ -35,12 +35,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.nio.file.DirectoryStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -592,7 +596,7 @@ public class ImageBuildService {
             Path.of(config.getBuildContextDir()), 
             String.format("build-%s-", serviceId)
         );
-        
+
         // 生成 Dockerfile
         String dockerfile = generateDockerfile(baseImage, envVars);
         Files.writeString(contextDir.resolve("Dockerfile"), dockerfile);
@@ -660,8 +664,56 @@ public class ImageBuildService {
             log.warn("Failed to load default config.json: {}", e.getMessage());
         }
 
+        int copied = copyBundledBuildAssets(contextDir);
+        if (copied <= 0) {
+            throw new IOException("Bundled build-assets are required but missing or empty");
+        }
+        log.debug("Bundled build assets copied into context: {} files", copied);
+
         log.debug("Build context created at: {}", contextDir);
         return contextDir;
+    }
+
+    private boolean hasBundledBuildAssets() {
+        return new ClassPathResource("build-assets/manifest.txt").exists();
+    }
+
+    private int copyBundledBuildAssets(Path contextDir) throws IOException {
+        ClassPathResource manifestResource = new ClassPathResource("build-assets/manifest.txt");
+        if (!manifestResource.exists()) {
+            return 0;
+        }
+
+        Path assetsRoot = contextDir.resolve("build-assets").toAbsolutePath().normalize();
+        int copied = 0;
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(manifestResource.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String relative = line.trim();
+                if (relative.isEmpty() || relative.startsWith("#")) {
+                    continue;
+                }
+                ClassPathResource resource = new ClassPathResource("build-assets/" + relative);
+                if (!resource.exists()) {
+                    log.warn("Bundled build asset listed but missing: {}", relative);
+                    continue;
+                }
+
+                Path target = assetsRoot.resolve(relative).normalize();
+                if (!target.startsWith(assetsRoot)) {
+                    throw new IOException("Illegal bundled build asset path: " + relative);
+                }
+                if (target.getParent() != null) {
+                    Files.createDirectories(target.getParent());
+                }
+                try (InputStream inputStream = resource.getInputStream()) {
+                    Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                copied++;
+            }
+        }
+        return copied;
     }
     
     /**
@@ -670,10 +722,6 @@ public class ImageBuildService {
      */
     String generateDockerfile(String baseImage, Map<String, Object> envVars) {
         StringBuilder sb = new StringBuilder();
-        String sdkRepoUrl = config.getSdkRepoUrl();
-        String assetSourceImage = config.getAssetSourceImage();
-        boolean hasSdkRepo = StringUtils.hasText(sdkRepoUrl);
-        boolean hasAssetSourceImage = !hasSdkRepo && StringUtils.hasText(assetSourceImage);
 
         String sdkSourcePath = StringUtils.hasText(config.getSdkSourcePath())
             ? config.getSdkSourcePath().trim()
@@ -688,9 +736,6 @@ public class ImageBuildService {
         
         // FROM 指令
         sb.append("# Auto-generated Dockerfile\n");
-        if (hasAssetSourceImage) {
-            sb.append("FROM ").append(assetSourceImage.trim()).append(" AS linkwork_assets\n\n");
-        }
         sb.append("FROM ").append(baseImage).append("\n\n");
         
         // ENV 指令（注入环境变量）
@@ -720,70 +765,16 @@ public class ImageBuildService {
             sb.append("\n");
         }
         
-        // Clone SDK repo and prepare sdk-source + zzd-binaries (before build.sh)
-        if (hasSdkRepo) {
-            // 使用 GIT_TOKEN 环境变量认证（已在 ENV 指令中注入），不再用硬编码的 sdkRepoUsername/Password  合并分支暂时注释，这是init时拉取sdk 仓库的节点过程，该节点是不需要用户的业务级仓库token的
-//            String cloneCmd = sdkRepoUrl.replace("https://", "https://oauth2:${GIT_TOKEN}@");
+        // Bundled assets from project resources
+        sb.append("# Bundled build assets from project resources\n");
+        sb.append("RUN mkdir -p ").append(zzdBinariesPath).append(" \\\n");
+        sb.append("    && mkdir -p ").append(sdkSourcePath).append(" \\\n");
+        sb.append("    && mkdir -p ").append(startScriptsPath).append("\n");
+        sb.append("COPY build-assets/ ").append(buildAssetsRoot).append("/\n\n");
 
-            // Build authenticated clone URL: https://user:pass@host/path.git
-            String cloneUrl = sdkRepoUrl;
-            if (StringUtils.hasText(config.getSdkRepoUsername()) 
-                    && StringUtils.hasText(config.getSdkRepoPassword())) {
-                cloneUrl = sdkRepoUrl.replace("https://", 
-                    "https://" + config.getSdkRepoUsername() + ":" + config.getSdkRepoPassword() + "@");
-            }
-            
-            sb.append("# Cache-bust: force re-clone on every build to pick up latest binaries/SDK\n");
-            sb.append("ARG CACHEBUST=").append(System.currentTimeMillis()).append("\n");
-            sb.append("# Clone repo and organize into BUILD_ASSETS_ROOT for build.sh (production v2)\n");
-            String branch = StringUtils.hasText(config.getSdkRepoBranch()) ? config.getSdkRepoBranch() : "test122";
-            sb.append("RUN set -e \\\n");
-            sb.append("    && git clone --depth 1 --single-branch -b ").append(branch).append(" ").append(cloneUrl).append(" /tmp/_sdk_repo \\\n");
-            // BUILD_ASSETS_ROOT directory structure (build.sh expects these sub-directories)
-            sb.append("    && mkdir -p ").append(zzdBinariesPath).append(" \\\n");
-            sb.append("    && mkdir -p ").append(sdkSourcePath).append(" \\\n");
-            sb.append("    && mkdir -p ").append(startScriptsPath).append(" \\\n");
-            // zzd binaries
-            sb.append("    && for bin in zzd zz gen-key encrypt-key; do \\\n");
-            sb.append("         cp /tmp/_sdk_repo/docker/agent/zzd/$bin ").append(zzdBinariesPath).append("/; \\\n");
-            sb.append("       done \\\n");
-            // SDK source (linkwork-agent-sdk, fallback agent-sdk for backward compatibility)
-            sb.append("    && if [ -d /tmp/_sdk_repo/linkwork-agent-sdk ]; then \\\n");
-            sb.append("         cp -a /tmp/_sdk_repo/linkwork-agent-sdk/. ").append(sdkSourcePath).append("/; \\\n");
-            sb.append("       elif [ -d /tmp/_sdk_repo/agent-sdk ]; then \\\n");
-            sb.append("         cp -a /tmp/_sdk_repo/agent-sdk/. ").append(sdkSourcePath).append("/; \\\n");
-            sb.append("       else \\\n");
-            sb.append("         echo 'SDK source directory not found in repo'; exit 1; \\\n");
-            sb.append("       fi \\\n");
-            // start scripts
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-single.sh ").append(startScriptsPath).append("/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/start-dual.sh ").append(startScriptsPath).append("/ \\\n");
-            sb.append("    && cp /tmp/_sdk_repo/docker/agent/ai_employee.py ").append(startScriptsPath).append("/ \\\n");
-            // cleanup
-            sb.append("    && rm -rf /tmp/_sdk_repo\n\n");
-
-            // Cedar 策略文件 → /tmp/cedar-policies/ (build.sh download_cedar_policies 会从这里读取)
-            sb.append("# Cedar policy files for build.sh to deploy\n");
-            sb.append("COPY cedar-policies/ /tmp/cedar-policies/\n\n");
-        } else if (hasAssetSourceImage) {
-            sb.append("# Fallback assets copied from local image\n");
-            sb.append("RUN mkdir -p ").append(zzdBinariesPath).append(" \\\n");
-            sb.append("    && mkdir -p ").append(sdkSourcePath).append(" \\\n");
-            sb.append("    && mkdir -p ").append(startScriptsPath).append("\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/bin/zzd ").append(zzdBinariesPath).append("/zzd\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/bin/zz ").append(zzdBinariesPath).append("/zz\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/bin/gen-key ").append(zzdBinariesPath).append("/gen-key\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/bin/encrypt-key ").append(zzdBinariesPath).append("/encrypt-key\n");
-            sb.append("COPY --from=linkwork_assets /opt/agent/start-single.sh ").append(startScriptsPath).append("/start-single.sh\n");
-            sb.append("COPY --from=linkwork_assets /opt/agent/start-dual.sh ").append(startScriptsPath).append("/start-dual.sh\n");
-            sb.append("COPY --from=linkwork_assets /opt/agent/ai_employee.py ").append(startScriptsPath).append("/ai_employee.py\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk\n");
-            sb.append("COPY --from=linkwork_assets /usr/local/lib/python3.12/site-packages/linkwork_agent_sdk-*.dist-info /usr/local/lib/python3.12/site-packages/\n\n");
-
-            // Cedar 策略文件 → /tmp/cedar-policies/ (build.sh download_cedar_policies 会从这里读取)
-            sb.append("# Cedar policy files for build.sh to deploy\n");
-            sb.append("COPY cedar-policies/ /tmp/cedar-policies/\n\n");
-        }
+        // Cedar 策略文件 → /tmp/cedar-policies/ (build.sh download_cedar_policies 会从这里读取)
+        sb.append("# Cedar policy files for build.sh to deploy\n");
+        sb.append("COPY cedar-policies/ /tmp/cedar-policies/\n\n");
         
         // 默认 config.json → /opt/agent/config.json（build.sh finalize_permissions 会设置权限）
         sb.append("# Default agent config (overridden at runtime by ConfigMap mount)\n");

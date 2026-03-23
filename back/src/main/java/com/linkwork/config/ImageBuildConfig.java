@@ -129,40 +129,14 @@ public class ImageBuildConfig {
     private boolean kindPruneEnabled = true;
     
     /**
-     * SDK 仓库 HTTPS 地址（用于镜像构建阶段克隆）
-     */
-    private String sdkRepoUrl = "";
-
-    /**
-     * 构建资产来源镜像（当 sdkRepoUrl 未配置时使用）
-     * 用于从已有镜像中复制 zzd/start-scripts/linkwork_agent_sdk
-     */
-    private String assetSourceImage = "";
-    
-    /**
-     * SDK 仓库克隆分支（默认 test122）
-     */
-    private String sdkRepoBranch = "test122";
-
-    /**
-     * SDK 仓库克隆用户名
-     */
-    private String sdkRepoUsername = "";
-    
-    /**
-     * SDK 仓库克隆密码
-     */
-    private String sdkRepoPassword = "";
-    
-    /**
      * SDK 源码在镜像中的目标路径
-     * 从 SDK 仓库的 linkwork-agent-sdk/ 目录拷贝
+     * 从项目内置 build-assets/sdk-source/ 目录拷贝
      */
     private String sdkSourcePath = "/opt/linkwork-agent-build/sdk-source";
     
     /**
      * zzd 二进制文件在镜像中的目标路径
-     * 从 SDK 仓库的 docker/agent/zzd/ 目录拷贝
+     * 从项目内置 build-assets/zzd-binaries/ 目录拷贝
      */
     private String zzdBinariesPath = "/opt/linkwork-agent-build/zzd-binaries";
 }
