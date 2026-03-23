@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from typing_extensions import Annotated
@@ -53,3 +53,5 @@ class LinkWorkAgentSDKConfig(BaseModel):
     claude_settings: ClaudeSettingsConfig = Field(default_factory=ClaudeSettingsConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     system_prompt: SystemPromptConfig = Field(default_factory=SystemPromptConfig)
+    runtime: dict[str, Any] = Field(default_factory=dict)
+    pi_settings: dict[str, Any] = Field(default_factory=dict)
