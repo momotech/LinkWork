@@ -5,13 +5,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkwork.common.FileConflictException;
 import com.linkwork.common.ForbiddenOperationException;
 import com.linkwork.common.ResourceNotFoundException;
-import com.linkwork.mapper.RobotFileMapper;
+import com.linkwork.mapper.WorkspaceFileMapper;
 import com.linkwork.model.enums.ConflictPolicy;
 import com.linkwork.model.dto.FileMentionResponse;
 import com.linkwork.model.dto.FileResponse;
 import com.linkwork.model.dto.FileTransferRequest;
 import com.linkwork.model.dto.MemoryIndexJob;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.model.entity.RoleEntity;
 import com.linkwork.service.memory.MemoryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +48,7 @@ public class FileService {
     private static final String FILE_TRANSFER_DEDUP_KEY_PREFIX = "file:transfer:dedup";
     private static final long FILE_TRANSFER_DEDUP_SECONDS = 5L;
 
-    private final RobotFileMapper robotFileMapper;
+    private final WorkspaceFileMapper workspaceFileMapper;
     private final NfsStorageService nfsStorageService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -81,7 +81,7 @@ public class FileService {
         if (existingNode != null) {
             switch (policy) {
                 case REJECT -> {
-                    RobotFile existingFile = "FILE".equals(existingNode.getEntryType()) && existingNode.getFileId() != null
+                    WorkspaceFile existingFile = "FILE".equals(existingNode.getEntryType()) && existingNode.getFileId() != null
                             ? findActiveByFileId(existingNode.getFileId()) : null;
                     throw new FileConflictException(
                             "目标目录已存在同名" + ("DIR".equals(existingNode.getEntryType()) ? "目录" : "文件"),
@@ -94,7 +94,7 @@ public class FileService {
                     if ("DIR".equals(existingNode.getEntryType())) {
                         throw new IllegalArgumentException("无法用文件覆盖目录");
                     }
-                    RobotFile existingFile = findActiveByFileId(existingNode.getFileId());
+                    WorkspaceFile existingFile = findActiveByFileId(existingNode.getFileId());
                     return overwriteUpload(existingFile, file);
                 }
                 case RENAME -> originalName = generateUniqueNodeName(userId, normalizedSpace, workstationId, parentId, originalName);
@@ -105,44 +105,44 @@ public class FileService {
         String fileId = UUID.randomUUID().toString().replace("-", "");
         String ossPath = buildOssPath(normalizedSpace, workstationId, userId, fileId, ext);
 
-        RobotFile robotFile = new RobotFile();
-        robotFile.setFileId(fileId);
-        robotFile.setFileName(originalName);
-        robotFile.setFileSize(file.getSize());
-        robotFile.setFileType(ext);
-        robotFile.setContentType(file.getContentType());
-        robotFile.setSpaceType(normalizedSpace);
-        robotFile.setWorkstationId(workstationId);
-        robotFile.setUserId(userId);
-        robotFile.setOssPath(ossPath);
-        robotFile.setMemoryIndexStatus("NONE");
-        robotFile.setParseStatus(PARSE_REQUIRED_TYPES.contains(ext) ? "NONE" : "SKIP");
-        robotFile.setFileHash(computeSha256(file));
-        robotFile.setCreatedAt(LocalDateTime.now());
-        robotFile.setUpdatedAt(LocalDateTime.now());
+        WorkspaceFile workspaceFile = new WorkspaceFile();
+        workspaceFile.setFileId(fileId);
+        workspaceFile.setFileName(originalName);
+        workspaceFile.setFileSize(file.getSize());
+        workspaceFile.setFileType(ext);
+        workspaceFile.setContentType(file.getContentType());
+        workspaceFile.setSpaceType(normalizedSpace);
+        workspaceFile.setWorkstationId(workstationId);
+        workspaceFile.setUserId(userId);
+        workspaceFile.setOssPath(ossPath);
+        workspaceFile.setMemoryIndexStatus("NONE");
+        workspaceFile.setParseStatus(PARSE_REQUIRED_TYPES.contains(ext) ? "NONE" : "SKIP");
+        workspaceFile.setFileHash(computeSha256(file));
+        workspaceFile.setCreatedAt(LocalDateTime.now());
+        workspaceFile.setUpdatedAt(LocalDateTime.now());
 
         try {
             nfsStorageService.uploadFileToPath(file, ossPath);
         } catch (IOException e) {
             throw new IllegalStateException("上传文件到存储失败", e);
         }
-        robotFileMapper.insert(robotFile);
+        workspaceFileMapper.insert(workspaceFile);
 
         fileNodeService.createFileNode(originalName, normalizedSpace, workstationId, userId, fileId, parentId);
 
-        if ("NONE".equals(robotFile.getParseStatus())) {
-            robotFile.setParseStatus("PARSING");
-            robotFile.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(robotFile);
+        if ("NONE".equals(workspaceFile.getParseStatus())) {
+            workspaceFile.setParseStatus("PARSING");
+            workspaceFile.setUpdatedAt(LocalDateTime.now());
+            workspaceFileMapper.updateById(workspaceFile);
             redisTemplate.opsForList().leftPush(FILE_PARSE_QUEUE_KEY, fileId);
         } else if (MEMORY_DIRECT_TYPES.contains(ext)) {
-            triggerMemoryIndex(robotFile);
+            triggerMemoryIndex(workspaceFile);
         }
 
-        return toResponse(robotFile);
+        return toResponse(workspaceFile);
     }
 
-    private FileResponse overwriteUpload(RobotFile target, MultipartFile newFile) {
+    private FileResponse overwriteUpload(WorkspaceFile target, MultipartFile newFile) {
         String ext = getExtension(newFile.getOriginalFilename());
         try {
             nfsStorageService.uploadFileToPath(newFile, target.getOssPath());
@@ -166,7 +166,7 @@ public class FileService {
         target.setMemoryIndexStatus("NONE");
         target.setParsedOssPath(null);
         target.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.updateById(target);
+        workspaceFileMapper.updateById(target);
 
         if (PARSE_REQUIRED_TYPES.contains(ext)) {
             redisTemplate.opsForList().leftPush(FILE_PARSE_QUEUE_KEY, target.getFileId());
@@ -186,23 +186,23 @@ public class FileService {
             size = 100;
         }
 
-        LambdaQueryWrapper<RobotFile> wrapper = new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getSpaceType, spaceType.toUpperCase(Locale.ROOT))
-                .isNull(RobotFile::getDeletedAt)
-                .orderByDesc(RobotFile::getCreatedAt);
+        LambdaQueryWrapper<WorkspaceFile> wrapper = new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getSpaceType, spaceType.toUpperCase(Locale.ROOT))
+                .isNull(WorkspaceFile::getDeletedAt)
+                .orderByDesc(WorkspaceFile::getCreatedAt);
 
         if ("WORKSTATION".equalsIgnoreCase(spaceType)) {
-            wrapper.eq(RobotFile::getWorkstationId, workstationId);
+            wrapper.eq(WorkspaceFile::getWorkstationId, workstationId);
         }
         if (StringUtils.hasText(fileType)) {
-            wrapper.eq(RobotFile::getFileType, fileType.toLowerCase(Locale.ROOT));
+            wrapper.eq(WorkspaceFile::getFileType, fileType.toLowerCase(Locale.ROOT));
         }
         if (StringUtils.hasText(keyword)) {
-            wrapper.like(RobotFile::getFileName, keyword.trim());
+            wrapper.like(WorkspaceFile::getFileName, keyword.trim());
         }
 
-        Page<RobotFile> result = robotFileMapper.selectPage(new Page<>(currentPage, size), wrapper);
+        Page<WorkspaceFile> result = workspaceFileMapper.selectPage(new Page<>(currentPage, size), wrapper);
         List<FileResponse> items = result.getRecords().stream().map(this::toResponse).toList();
 
         Map<String, Object> pagination = new HashMap<>();
@@ -218,13 +218,13 @@ public class FileService {
     }
 
     public FileResponse getFileDetail(String fileId, String userId) {
-        RobotFile file = findActiveByFileId(fileId);
+        WorkspaceFile file = findActiveByFileId(fileId);
         checkPermission(file, userId);
         return toResponse(file);
     }
 
     public DownloadInfo getDownloadInfo(String fileId, String userId) {
-        RobotFile file = findActiveByFileId(fileId);
+        WorkspaceFile file = findActiveByFileId(fileId);
         checkPermission(file, userId);
         return new DownloadInfo(file.getOssPath(), file.getFileName(), file.getContentType());
     }
@@ -232,12 +232,12 @@ public class FileService {
     public record DownloadInfo(String storagePath, String fileName, String contentType) {}
 
     public void deleteFile(String fileId, String userId) {
-        RobotFile file = findActiveByFileId(fileId);
+        WorkspaceFile file = findActiveByFileId(fileId);
         checkPermission(file, userId);
 
         file.setDeletedAt(LocalDateTime.now());
         file.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.updateById(file);
+        workspaceFileMapper.updateById(file);
 
         com.linkwork.model.entity.FileNodeEntity node = fileNodeService.findByFileId(
                 fileId, userId, file.getSpaceType(), file.getWorkstationId());
@@ -268,7 +268,7 @@ public class FileService {
     }
 
     public FileResponse replaceFile(String fileId, MultipartFile newFile, String userId) {
-        RobotFile file = findActiveByFileId(fileId);
+        WorkspaceFile file = findActiveByFileId(fileId);
         checkPermission(file, userId);
         validateUpload(newFile, file.getSpaceType(), file.getWorkstationId(), userId);
 
@@ -296,7 +296,7 @@ public class FileService {
         file.setMemoryIndexStatus("NONE");
         file.setParsedOssPath(null);
         file.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.updateById(file);
+        workspaceFileMapper.updateById(file);
 
         if (PARSE_REQUIRED_TYPES.contains(ext)) {
             redisTemplate.opsForList().leftPush(FILE_PARSE_QUEUE_KEY, file.getFileId());
@@ -308,7 +308,7 @@ public class FileService {
     }
 
     public FileResponse copyFile(String fileId, FileTransferRequest request, String userId) {
-        RobotFile source = findActiveByFileId(fileId);
+        WorkspaceFile source = findActiveByFileId(fileId);
         checkPermission(source, userId);
         validateSpaceType(request.getTargetSpaceType(), request.getTargetWorkstationId());
         String targetSpaceType = request.getTargetSpaceType().toUpperCase(Locale.ROOT);
@@ -323,7 +323,7 @@ public class FileService {
         if (conflictNode != null) {
             switch (policy) {
                 case REJECT -> {
-                    RobotFile conflictFile = "FILE".equals(conflictNode.getEntryType()) && conflictNode.getFileId() != null
+                    WorkspaceFile conflictFile = "FILE".equals(conflictNode.getEntryType()) && conflictNode.getFileId() != null
                             ? findActiveByFileId(conflictNode.getFileId()) : null;
                     throw new FileConflictException(
                             "目标目录已存在同名" + ("DIR".equals(conflictNode.getEntryType()) ? "目录" : "文件"),
@@ -336,7 +336,7 @@ public class FileService {
                     if ("DIR".equals(conflictNode.getEntryType())) {
                         throw new IllegalArgumentException("无法用文件覆盖目录");
                     }
-                    RobotFile conflictFile = findActiveByFileId(conflictNode.getFileId());
+                    WorkspaceFile conflictFile = findActiveByFileId(conflictNode.getFileId());
                     acquireTransferDedup(source.getFileId(), userId, "copy", targetSpaceType,
                             request.getTargetWorkstationId(), policy, targetParentId);
                     return toResponse(overwriteTargetFile(source, conflictFile));
@@ -346,7 +346,7 @@ public class FileService {
                         com.linkwork.model.entity.FileNodeEntity newNameConflict = fileNodeService.findSameNameNode(
                                 userId, targetSpaceType, request.getTargetWorkstationId(), targetParentId, request.getNewName());
                         if (newNameConflict != null) {
-                            RobotFile conflictFile = "FILE".equals(newNameConflict.getEntryType()) && newNameConflict.getFileId() != null
+                            WorkspaceFile conflictFile = "FILE".equals(newNameConflict.getEntryType()) && newNameConflict.getFileId() != null
                                     ? findActiveByFileId(newNameConflict.getFileId()) : null;
                             throw new FileConflictException(
                                     "目标目录已存在同名" + ("DIR".equals(newNameConflict.getEntryType()) ? "目录" : "文件"),
@@ -378,7 +378,7 @@ public class FileService {
             nfsStorageService.copyObject(source.getParsedOssPath(), targetParsedPath);
         }
 
-        RobotFile copied = new RobotFile();
+        WorkspaceFile copied = new WorkspaceFile();
         copied.setFileId(newFileId);
         copied.setFileName(targetFileName);
         copied.setFileSize(source.getFileSize());
@@ -396,7 +396,7 @@ public class FileService {
         copied.setUpdatedAt(LocalDateTime.now());
 
         try {
-            robotFileMapper.insert(copied);
+            workspaceFileMapper.insert(copied);
         } catch (Exception e) {
             try { nfsStorageService.deleteFile(targetOssPath); } catch (Exception ignored) { }
             if (targetParsedPath != null) {
@@ -416,7 +416,7 @@ public class FileService {
     }
 
     public FileResponse moveFile(String fileId, FileTransferRequest request, String userId) {
-        RobotFile source = findActiveByFileId(fileId);
+        WorkspaceFile source = findActiveByFileId(fileId);
         checkPermission(source, userId);
         validateSpaceType(request.getTargetSpaceType(), request.getTargetWorkstationId());
         String targetSpaceType = request.getTargetSpaceType().toUpperCase(Locale.ROOT);
@@ -438,7 +438,7 @@ public class FileService {
         if (conflictNode != null) {
             switch (policy) {
                 case REJECT -> {
-                    RobotFile conflictFile = "FILE".equals(conflictNode.getEntryType()) && conflictNode.getFileId() != null
+                    WorkspaceFile conflictFile = "FILE".equals(conflictNode.getEntryType()) && conflictNode.getFileId() != null
                             ? findActiveByFileId(conflictNode.getFileId()) : null;
                     throw new FileConflictException(
                             "目标目录已存在同名" + ("DIR".equals(conflictNode.getEntryType()) ? "目录" : "文件"),
@@ -452,7 +452,7 @@ public class FileService {
                         com.linkwork.model.entity.FileNodeEntity newNameConflict = fileNodeService.findSameNameNode(
                                 userId, targetSpaceType, request.getTargetWorkstationId(), targetParentId, request.getNewName());
                         if (newNameConflict != null && (sourceNode == null || !newNameConflict.getNodeId().equals(sourceNode.getNodeId()))) {
-                            RobotFile cf = "FILE".equals(newNameConflict.getEntryType()) && newNameConflict.getFileId() != null
+                            WorkspaceFile cf = "FILE".equals(newNameConflict.getEntryType()) && newNameConflict.getFileId() != null
                                     ? findActiveByFileId(newNameConflict.getFileId()) : null;
                             throw new FileConflictException(
                                     "目标目录已存在同名" + ("DIR".equals(newNameConflict.getEntryType()) ? "目录" : "文件"),
@@ -477,10 +477,10 @@ public class FileService {
                     if ("DIR".equals(conflictNode.getEntryType())) {
                         throw new IllegalArgumentException("无法用文件覆盖目录");
                     }
-                    RobotFile conflictFile = findActiveByFileId(conflictNode.getFileId());
+                    WorkspaceFile conflictFile = findActiveByFileId(conflictNode.getFileId());
                     conflictFile.setDeletedAt(LocalDateTime.now());
                     conflictFile.setUpdatedAt(LocalDateTime.now());
-                    robotFileMapper.updateById(conflictFile);
+                    workspaceFileMapper.updateById(conflictFile);
                     fileNodeService.deleteNode(conflictNode.getNodeId(), userId);
                     try {
                         nfsStorageService.deleteFile(conflictFile.getOssPath());
@@ -529,7 +529,7 @@ public class FileService {
         source.setParsedOssPath(targetParsedPath);
         source.setUpdatedAt(LocalDateTime.now());
         source.setMemoryIndexStatus("NONE");
-        robotFileMapper.updateById(source);
+        workspaceFileMapper.updateById(source);
 
         // 更新 file node 归属
         if (sourceNode != null) {
@@ -576,15 +576,15 @@ public class FileService {
     }
 
     public List<FileMentionResponse> mentionFiles(String workstationId, String keyword, String userId) {
-        List<RobotFile> wsFiles = listBySpaceForMention(userId, "WORKSTATION", workstationId, keyword);
-        List<RobotFile> userFiles = listBySpaceForMention(userId, "USER", null, keyword);
+        List<WorkspaceFile> wsFiles = listBySpaceForMention(userId, "WORKSTATION", workstationId, keyword);
+        List<WorkspaceFile> userFiles = listBySpaceForMention(userId, "USER", null, keyword);
         return Stream.concat(wsFiles.stream(), userFiles.stream())
                 .limit(50)
                 .map(this::toMentionResponse)
                 .toList();
     }
 
-    public void triggerMemoryIndex(RobotFile file) {
+    public void triggerMemoryIndex(WorkspaceFile file) {
         if (memoryService == null || file == null) {
             return;
         }
@@ -598,7 +598,7 @@ public class FileService {
         } else if (MEMORY_SKIP_TYPES.contains(fileType)) {
             file.setMemoryIndexStatus("SKIP");
             file.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(file);
+            workspaceFileMapper.updateById(file);
             return;
         } else {
             return;
@@ -626,7 +626,7 @@ public class FileService {
             if (Boolean.FALSE.equals(enabled)) {
                 file.setMemoryIndexStatus("SKIP");
                 file.setUpdatedAt(LocalDateTime.now());
-                robotFileMapper.updateById(file);
+                workspaceFileMapper.updateById(file);
                 return;
             }
         }
@@ -652,29 +652,29 @@ public class FileService {
             redisTemplate.opsForList().leftPush(memoryConfig.getIndex().getQueueKey(), payload);
             file.setMemoryIndexStatus("INDEXING");
             file.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(file);
+            workspaceFileMapper.updateById(file);
         } catch (Exception e) {
             throw new IllegalStateException("触发 Memory 索引失败", e);
         }
     }
 
-    private List<RobotFile> listBySpaceForMention(String userId, String spaceType, String workstationId, String keyword) {
-        LambdaQueryWrapper<RobotFile> wrapper = new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getSpaceType, spaceType)
-                .isNull(RobotFile::getDeletedAt)
-                .orderByDesc(RobotFile::getCreatedAt)
+    private List<WorkspaceFile> listBySpaceForMention(String userId, String spaceType, String workstationId, String keyword) {
+        LambdaQueryWrapper<WorkspaceFile> wrapper = new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getSpaceType, spaceType)
+                .isNull(WorkspaceFile::getDeletedAt)
+                .orderByDesc(WorkspaceFile::getCreatedAt)
                 .last("limit 50");
         if (StringUtils.hasText(workstationId)) {
-            wrapper.eq(RobotFile::getWorkstationId, workstationId);
+            wrapper.eq(WorkspaceFile::getWorkstationId, workstationId);
         }
         if (StringUtils.hasText(keyword)) {
-            wrapper.like(RobotFile::getFileName, keyword.trim());
+            wrapper.like(WorkspaceFile::getFileName, keyword.trim());
         }
-        return robotFileMapper.selectList(wrapper);
+        return workspaceFileMapper.selectList(wrapper);
     }
 
-    private FileMentionResponse toMentionResponse(RobotFile file) {
+    private FileMentionResponse toMentionResponse(WorkspaceFile file) {
         FileMentionResponse response = new FileMentionResponse();
         response.setFileId(file.getFileId());
         response.setFileName(file.getFileName());
@@ -697,23 +697,23 @@ public class FileService {
         }
     }
 
-    private RobotFile findSameNameFile(String userId, String spaceType, String workstationId,
+    private WorkspaceFile findSameNameFile(String userId, String spaceType, String workstationId,
                                         String fileName, String excludeFileId) {
-        LambdaQueryWrapper<RobotFile> wrapper = new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getSpaceType, spaceType)
-                .eq(RobotFile::getFileName, fileName)
-                .isNull(RobotFile::getDeletedAt)
+        LambdaQueryWrapper<WorkspaceFile> wrapper = new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getSpaceType, spaceType)
+                .eq(WorkspaceFile::getFileName, fileName)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1");
         if ("WORKSTATION".equals(spaceType)) {
-            wrapper.eq(RobotFile::getWorkstationId, workstationId);
+            wrapper.eq(WorkspaceFile::getWorkstationId, workstationId);
         } else {
-            wrapper.isNull(RobotFile::getWorkstationId);
+            wrapper.isNull(WorkspaceFile::getWorkstationId);
         }
         if (StringUtils.hasText(excludeFileId)) {
-            wrapper.ne(RobotFile::getFileId, excludeFileId);
+            wrapper.ne(WorkspaceFile::getFileId, excludeFileId);
         }
-        return robotFileMapper.selectOne(wrapper);
+        return workspaceFileMapper.selectOne(wrapper);
     }
 
     private String generateUniqueNodeName(String userId, String spaceType, String workstationId,
@@ -754,7 +754,7 @@ public class FileService {
 
         for (int i = 1; i <= 100; i++) {
             String candidate = baseName + " (" + i + ")" + extension;
-            RobotFile existing = findSameNameFile(userId, spaceType, workstationId, candidate, null);
+            WorkspaceFile existing = findSameNameFile(userId, spaceType, workstationId, candidate, null);
             if (existing == null) {
                 return candidate;
             }
@@ -762,7 +762,7 @@ public class FileService {
         return baseName + " (" + UUID.randomUUID().toString().substring(0, 8) + ")" + extension;
     }
 
-    private RobotFile overwriteTargetFile(RobotFile source, RobotFile target) {
+    private WorkspaceFile overwriteTargetFile(WorkspaceFile source, WorkspaceFile target) {
         nfsStorageService.copyObject(source.getOssPath(), target.getOssPath());
 
         String targetParsedPath = target.getParsedOssPath();
@@ -789,7 +789,7 @@ public class FileService {
         target.setParsedOssPath(targetParsedPath);
         target.setMemoryIndexStatus("NONE");
         target.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.updateById(target);
+        workspaceFileMapper.updateById(target);
 
         if ("PARSED".equals(target.getParseStatus()) || MEMORY_DIRECT_TYPES.contains(target.getFileType())) {
             triggerMemoryIndex(target);
@@ -848,10 +848,10 @@ public class FileService {
         }
     }
 
-    private RobotFile findActiveByFileId(String fileId) {
-        RobotFile file = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getFileId, fileId)
-                .isNull(RobotFile::getDeletedAt)
+    private WorkspaceFile findActiveByFileId(String fileId) {
+        WorkspaceFile file = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getFileId, fileId)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1"));
         if (file == null) {
             throw new ResourceNotFoundException("文件不存在: " + fileId);
@@ -859,7 +859,7 @@ public class FileService {
         return file;
     }
 
-    private void checkPermission(RobotFile file, String userId) {
+    private void checkPermission(WorkspaceFile file, String userId) {
         if (!Objects.equals(file.getUserId(), userId)) {
             throw new ForbiddenOperationException("无权限访问该文件");
         }
@@ -917,7 +917,7 @@ public class FileService {
         }
     }
 
-    public FileResponse toResponse(RobotFile file) {
+    public FileResponse toResponse(WorkspaceFile file) {
         FileResponse response = new FileResponse();
         response.setFileId(file.getFileId());
         response.setFileName(file.getFileName());

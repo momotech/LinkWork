@@ -3,9 +3,9 @@ package com.linkwork.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkwork.config.DispatchConfig;
 import com.linkwork.mapper.FileNodeMapper;
-import com.linkwork.mapper.RobotFileMapper;
+import com.linkwork.mapper.WorkspaceFileMapper;
 import com.linkwork.model.entity.FileNodeEntity;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.model.entity.Task;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,7 @@ public class TaskOutputWorkspaceSyncService {
     private final TaskService taskService;
     private final DispatchConfig dispatchConfig;
     private final NfsStorageService nfsStorageService;
-    private final RobotFileMapper robotFileMapper;
+    private final WorkspaceFileMapper workspaceFileMapper;
     private final FileNodeMapper fileNodeMapper;
 
     public record WorkspaceSyncContext(String workstationId, String parentNodeId, String taskNodeId) {}
@@ -128,13 +128,13 @@ public class TaskOutputWorkspaceSyncService {
             if (!StringUtils.hasText(fileName)) {
                 continue;
             }
-            RobotFile robotFile = ensureRobotFile(
+            WorkspaceFile workspaceFile = ensureWorkspaceFile(
                     context.userId(),
                     context.workstationId(),
                     objectName,
                     fileName,
                     resolveFileSize(objectName));
-            ensureFileNode(context.userId(), context.workstationId(), taskDirectory.getNodeId(), robotFile, fileName);
+            ensureFileNode(context.userId(), context.workstationId(), taskDirectory.getNodeId(), workspaceFile, fileName);
         }
 
         return Optional.of(new WorkspaceSyncContext(
@@ -209,18 +209,18 @@ public class TaskOutputWorkspaceSyncService {
         return createDirectory(userId, workstationId, parentId, safeTaskNo);
     }
 
-    private RobotFile ensureRobotFile(
+    private WorkspaceFile ensureWorkspaceFile(
             String userId,
             String workstationId,
             String objectName,
             String fileName,
             long fileSize) {
-        RobotFile existed = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getSpaceType, SPACE_TYPE_WORKSTATION)
-                .eq(RobotFile::getWorkstationId, workstationId)
-                .eq(RobotFile::getOssPath, objectName)
-                .isNull(RobotFile::getDeletedAt)
+        WorkspaceFile existed = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getSpaceType, SPACE_TYPE_WORKSTATION)
+                .eq(WorkspaceFile::getWorkstationId, workstationId)
+                .eq(WorkspaceFile::getOssPath, objectName)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1"));
         if (existed != null) {
             boolean changed = false;
@@ -239,12 +239,12 @@ public class TaskOutputWorkspaceSyncService {
             }
             if (changed) {
                 existed.setUpdatedAt(LocalDateTime.now());
-                robotFileMapper.updateById(existed);
+                workspaceFileMapper.updateById(existed);
             }
             return existed;
         }
 
-        RobotFile created = new RobotFile();
+        WorkspaceFile created = new WorkspaceFile();
         created.setFileId(UUID.randomUUID().toString().replace("-", ""));
         created.setFileName(fileName);
         created.setFileSize(fileSize);
@@ -257,17 +257,17 @@ public class TaskOutputWorkspaceSyncService {
         created.setMemoryIndexStatus("SKIP");
         created.setCreatedAt(LocalDateTime.now());
         created.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.insert(created);
+        workspaceFileMapper.insert(created);
         return created;
     }
 
-    private void ensureFileNode(String userId, String workstationId, String parentId, RobotFile robotFile, String fileName) {
+    private void ensureFileNode(String userId, String workstationId, String parentId, WorkspaceFile workspaceFile, String fileName) {
         FileNodeEntity existed = fileNodeMapper.selectOne(new LambdaQueryWrapper<FileNodeEntity>()
                 .eq(FileNodeEntity::getUserId, userId)
                 .eq(FileNodeEntity::getSpaceType, SPACE_TYPE_WORKSTATION)
                 .eq(FileNodeEntity::getWorkstationId, workstationId)
                 .eq(FileNodeEntity::getParentId, parentId)
-                .eq(FileNodeEntity::getFileId, robotFile.getFileId())
+                .eq(FileNodeEntity::getFileId, workspaceFile.getFileId())
                 .isNull(FileNodeEntity::getDeletedAt)
                 .last("limit 1"));
         if (existed != null) {
@@ -289,7 +289,7 @@ public class TaskOutputWorkspaceSyncService {
         node.setSpaceType(SPACE_TYPE_WORKSTATION);
         node.setWorkstationId(workstationId);
         node.setUserId(userId);
-        node.setFileId(robotFile.getFileId());
+        node.setFileId(workspaceFile.getFileId());
         node.setCreatedAt(LocalDateTime.now());
         node.setUpdatedAt(LocalDateTime.now());
         fileNodeMapper.insert(node);
@@ -458,7 +458,7 @@ public class TaskOutputWorkspaceSyncService {
         String parentDir = extractParentPath(resolution.subPath());
         String parentId = ensureDirectoryChain(userId, resolution.workstationId(), resolution.spaceType(), parentDir);
 
-        RobotFile robotFile = ensureRobotFileGeneric(
+        WorkspaceFile workspaceFile = ensureWorkspaceFileGeneric(
                 userId,
                 resolution.workstationId(),
                 resolution.spaceType(),
@@ -471,7 +471,7 @@ public class TaskOutputWorkspaceSyncService {
                 resolution.workstationId(),
                 resolution.spaceType(),
                 parentId,
-                robotFile,
+                workspaceFile,
                 fileName
         );
     }
@@ -480,10 +480,10 @@ public class TaskOutputWorkspaceSyncService {
         if (!StringUtils.hasText(objectName)) {
             return;
         }
-        RobotFile existed = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getOssPath, objectName)
-                .isNull(RobotFile::getDeletedAt)
+        WorkspaceFile existed = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getOssPath, objectName)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1"));
         if (existed == null) {
             return;
@@ -491,7 +491,7 @@ public class TaskOutputWorkspaceSyncService {
         LocalDateTime now = LocalDateTime.now();
         existed.setDeletedAt(now);
         existed.setUpdatedAt(now);
-        robotFileMapper.updateById(existed);
+        workspaceFileMapper.updateById(existed);
 
         List<FileNodeEntity> nodes = fileNodeMapper.selectList(new LambdaQueryWrapper<FileNodeEntity>()
                 .eq(FileNodeEntity::getFileId, existed.getFileId())
@@ -520,7 +520,7 @@ public class TaskOutputWorkspaceSyncService {
         return baseName + suffix;
     }
 
-    private RobotFile ensureRobotFileGeneric(
+    private WorkspaceFile ensureWorkspaceFileGeneric(
             String userId,
             String workstationId,
             String spaceType,
@@ -528,19 +528,19 @@ public class TaskOutputWorkspaceSyncService {
             String fileName,
             long fileSize
     ) {
-        LambdaQueryWrapper<RobotFile> query = new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getUserId, userId)
-                .eq(RobotFile::getSpaceType, spaceType)
-                .eq(RobotFile::getOssPath, objectName)
-                .isNull(RobotFile::getDeletedAt)
+        LambdaQueryWrapper<WorkspaceFile> query = new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getUserId, userId)
+                .eq(WorkspaceFile::getSpaceType, spaceType)
+                .eq(WorkspaceFile::getOssPath, objectName)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1");
         if (SPACE_TYPE_WORKSTATION.equals(spaceType)) {
-            query.eq(RobotFile::getWorkstationId, workstationId);
+            query.eq(WorkspaceFile::getWorkstationId, workstationId);
         } else {
-            query.isNull(RobotFile::getWorkstationId);
+            query.isNull(WorkspaceFile::getWorkstationId);
         }
 
-        RobotFile existed = robotFileMapper.selectOne(query);
+        WorkspaceFile existed = workspaceFileMapper.selectOne(query);
         if (existed != null) {
             boolean changed = false;
             String fileType = extractFileType(fileName);
@@ -558,12 +558,12 @@ public class TaskOutputWorkspaceSyncService {
             }
             if (changed) {
                 existed.setUpdatedAt(LocalDateTime.now());
-                robotFileMapper.updateById(existed);
+                workspaceFileMapper.updateById(existed);
             }
             return existed;
         }
 
-        RobotFile created = new RobotFile();
+        WorkspaceFile created = new WorkspaceFile();
         created.setFileId(UUID.randomUUID().toString().replace("-", ""));
         created.setFileName(fileName);
         created.setFileSize(fileSize);
@@ -576,7 +576,7 @@ public class TaskOutputWorkspaceSyncService {
         created.setMemoryIndexStatus("SKIP");
         created.setCreatedAt(LocalDateTime.now());
         created.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.insert(created);
+        workspaceFileMapper.insert(created);
         return created;
     }
 
@@ -585,14 +585,14 @@ public class TaskOutputWorkspaceSyncService {
             String workstationId,
             String spaceType,
             String parentId,
-            RobotFile robotFile,
+            WorkspaceFile workspaceFile,
             String fileName
     ) {
         String desiredName = fileName;
         LambdaQueryWrapper<FileNodeEntity> query = new LambdaQueryWrapper<FileNodeEntity>()
                 .eq(FileNodeEntity::getUserId, userId)
                 .eq(FileNodeEntity::getSpaceType, spaceType)
-                .eq(FileNodeEntity::getFileId, robotFile.getFileId())
+                .eq(FileNodeEntity::getFileId, workspaceFile.getFileId())
                 .isNull(FileNodeEntity::getDeletedAt)
                 .last("limit 1");
         if (SPACE_TYPE_WORKSTATION.equals(spaceType)) {
@@ -636,7 +636,7 @@ public class TaskOutputWorkspaceSyncService {
         node.setSpaceType(spaceType);
         node.setWorkstationId(SPACE_TYPE_WORKSTATION.equals(spaceType) ? workstationId : null);
         node.setUserId(userId);
-        node.setFileId(robotFile.getFileId());
+        node.setFileId(workspaceFile.getFileId());
         node.setCreatedAt(LocalDateTime.now());
         node.setUpdatedAt(LocalDateTime.now());
         fileNodeMapper.insert(node);

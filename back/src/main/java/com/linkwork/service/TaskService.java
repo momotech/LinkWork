@@ -8,14 +8,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkwork.common.ForbiddenOperationException;
 import com.linkwork.common.SnowflakeIdGenerator;
 import com.linkwork.config.DispatchConfig;
-import com.linkwork.mapper.RobotFileMapper;
+import com.linkwork.mapper.WorkspaceFileMapper;
 import com.linkwork.mapper.TaskMapper;
 import com.linkwork.model.dto.ScaleResult;
 import com.linkwork.model.dto.TaskCompleteRequest;
 import com.linkwork.model.dto.TaskCreateRequest;
 import com.linkwork.model.dto.TaskResponse;
 import com.linkwork.model.entity.McpServerEntity;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.model.entity.RoleEntity;
 import com.linkwork.model.entity.SkillEntity;
 import com.linkwork.model.entity.Task;
@@ -61,7 +61,7 @@ public class TaskService {
     private static final String OUTPUT_CODE_PULL_REQUEST = TaskOutputType.PULL_REQUEST.getCode();
 
     private final TaskMapper taskMapper;
-    private final RobotFileMapper robotFileMapper;
+    private final WorkspaceFileMapper workspaceFileMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RoleService roleService;
@@ -132,7 +132,7 @@ public class TaskService {
         PromptLayers promptLayers = buildPromptLayers(role, creatorId);
         String systemPromptAppend = toSystemPromptAppend(promptLayers);
 
-        List<RobotFile> selectedFiles = loadSelectedFiles(request.getFileIds(), creatorId);
+        List<WorkspaceFile> selectedFiles = loadSelectedFiles(request.getFileIds(), creatorId);
         List<TaskInputFileRef> taskInputFiles = buildTaskInputFiles(selectedFiles);
         String resolvedContent = buildResolvedTaskContent(request.getPrompt(), taskInputFiles);
 
@@ -173,7 +173,7 @@ public class TaskService {
         // 序列化配置（包含 fileIds、岗位继承配置和预估产出）
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("modelId", request.getModelId());
-        configMap.put("fileIds", selectedFiles.stream().map(RobotFile::getFileId).toList());
+        configMap.put("fileIds", selectedFiles.stream().map(WorkspaceFile::getFileId).toList());
         configMap.put("systemPromptAppend", systemPromptAppend);
         configMap.put("promptLayers", toPromptLayerMap(promptLayers));
         if (!selectedFiles.isEmpty()) {
@@ -184,7 +184,7 @@ public class TaskService {
                 inputFileRefMap.put(inputFile.fileId(), inputFile);
                 aliasMap.put(inputFile.runtimePath(), inputFile.realPath());
             }
-            for (RobotFile rf : selectedFiles) {
+            for (WorkspaceFile rf : selectedFiles) {
                 TaskInputFileRef ref = inputFileRefMap.get(rf.getFileId());
                 fileDetails.add(Map.of(
                         "fileId", rf.getFileId(),
@@ -1069,7 +1069,7 @@ public class TaskService {
         return tasks.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    private List<RobotFile> loadSelectedFiles(List<String> fileIds, String creatorId) {
+    private List<WorkspaceFile> loadSelectedFiles(List<String> fileIds, String creatorId) {
         if (fileIds == null || fileIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1085,12 +1085,12 @@ public class TaskService {
             return Collections.emptyList();
         }
 
-        List<RobotFile> files = new ArrayList<>();
+        List<WorkspaceFile> files = new ArrayList<>();
         for (String fileId : uniqueIds) {
-            RobotFile file = robotFileMapper.selectOne(
-                    new LambdaQueryWrapper<RobotFile>()
-                            .eq(RobotFile::getFileId, fileId)
-                            .isNull(RobotFile::getDeletedAt)
+            WorkspaceFile file = workspaceFileMapper.selectOne(
+                    new LambdaQueryWrapper<WorkspaceFile>()
+                            .eq(WorkspaceFile::getFileId, fileId)
+                            .isNull(WorkspaceFile::getDeletedAt)
                             .last("limit 1"));
             if (file == null) {
                 throw new IllegalArgumentException("文件不存在: " + fileId);
@@ -1103,18 +1103,18 @@ public class TaskService {
         return files;
     }
 
-    private List<TaskInputFileRef> buildTaskInputFiles(List<RobotFile> files) {
+    private List<TaskInputFileRef> buildTaskInputFiles(List<WorkspaceFile> files) {
         if (files == null || files.isEmpty()) {
             return Collections.emptyList();
         }
 
         Map<String, Long> nameCount = files.stream()
-                .collect(Collectors.groupingBy(RobotFile::getFileName, Collectors.counting()));
+                .collect(Collectors.groupingBy(WorkspaceFile::getFileName, Collectors.counting()));
 
         Map<String, Integer> nameSeq = new HashMap<>();
 
         List<TaskInputFileRef> refs = new ArrayList<>();
-        for (RobotFile file : files) {
+        for (WorkspaceFile file : files) {
             String displayName = file.getFileName();
             if (nameCount.getOrDefault(displayName, 0L) > 1) {
                 int seq = nameSeq.merge(displayName, 1, Integer::sum);
@@ -1137,7 +1137,7 @@ public class TaskService {
         return fileName + " (" + seq + ")";
     }
 
-    private String buildReadableRuntimePath(RobotFile file, String displayName) {
+    private String buildReadableRuntimePath(WorkspaceFile file, String displayName) {
         return buildWorkspaceFileBase(file) + displayName;
     }
 
@@ -1350,7 +1350,7 @@ public class TaskService {
         }
     }
 
-    private String buildRuntimeFilePath(RobotFile file) {
+    private String buildRuntimeFilePath(WorkspaceFile file) {
         String fileId = file == null ? null : file.getFileId();
         if (!StringUtils.hasText(fileId)) {
             throw new IllegalArgumentException("文件标识缺失，无法生成容器路径");
@@ -1359,7 +1359,7 @@ public class TaskService {
         return buildWorkspaceFileBase(file) + fileId + extension;
     }
 
-    private String buildWorkspaceFileBase(RobotFile file) {
+    private String buildWorkspaceFileBase(WorkspaceFile file) {
         return "WORKSTATION".equalsIgnoreCase(file.getSpaceType())
                 ? "/workspace/workstation/original/"
                 : "/workspace/user/original/";

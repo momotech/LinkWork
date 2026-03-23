@@ -24,8 +24,6 @@ sdk-source/src/linkwork_executor/work/consumer.py
 sdk-source/src/linkwork_executor/work/lifecycle.py
 sdk-source/src/linkwork_executor/work/worker.py
 sdk-source/src/linkwork_executor/work/workspace.py
-sdk-source/src/momo_agent_sdk/__init__.py
-sdk-source/src/momo_agent_sdk/work.py
 start-scripts/ai_employee.py
 start-scripts/start-dual.sh
 start-scripts/start-single.sh

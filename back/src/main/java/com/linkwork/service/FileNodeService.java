@@ -5,11 +5,11 @@ import com.linkwork.common.FileConflictException;
 import com.linkwork.common.ForbiddenOperationException;
 import com.linkwork.common.ResourceNotFoundException;
 import com.linkwork.mapper.FileNodeMapper;
-import com.linkwork.mapper.RobotFileMapper;
+import com.linkwork.mapper.WorkspaceFileMapper;
 import com.linkwork.model.dto.CreateFolderRequest;
 import com.linkwork.model.dto.FileNodeResponse;
 import com.linkwork.model.entity.FileNodeEntity;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.service.memory.MemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +30,7 @@ public class FileNodeService {
     private static final String DELETED_NAME_MARKER = "__deleted__";
 
     private final FileNodeMapper fileNodeMapper;
-    private final RobotFileMapper robotFileMapper;
+    private final WorkspaceFileMapper workspaceFileMapper;
     private final NfsStorageService nfsStorageService;
 
     @Autowired(required = false)
@@ -118,12 +118,12 @@ public class FileNodeService {
                 .map(FileNodeEntity::getFileId)
                 .collect(Collectors.toSet());
 
-        Map<String, RobotFile> fileMap = new HashMap<>();
+        Map<String, WorkspaceFile> fileMap = new HashMap<>();
         if (!fileIds.isEmpty()) {
-            LambdaQueryWrapper<RobotFile> fileWrapper = new LambdaQueryWrapper<RobotFile>()
-                    .in(RobotFile::getFileId, fileIds)
-                    .isNull(RobotFile::getDeletedAt);
-            robotFileMapper.selectList(fileWrapper)
+            LambdaQueryWrapper<WorkspaceFile> fileWrapper = new LambdaQueryWrapper<WorkspaceFile>()
+                    .in(WorkspaceFile::getFileId, fileIds)
+                    .isNull(WorkspaceFile::getDeletedAt);
+            workspaceFileMapper.selectList(fileWrapper)
                     .forEach(f -> fileMap.put(f.getFileId(), f));
         }
 
@@ -131,7 +131,7 @@ public class FileNodeService {
             boolean hasChildren = dirsWithChildren.contains(node.getNodeId());
             FileNodeResponse resp = toResponse(node, hasChildren);
             if ("FILE".equals(node.getEntryType()) && node.getFileId() != null) {
-                RobotFile rf = fileMap.get(node.getFileId());
+                WorkspaceFile rf = fileMap.get(node.getFileId());
                 if (rf != null) {
                     resp.setFileSize(rf.getFileSize());
                     resp.setFileType(rf.getFileType());
@@ -186,14 +186,14 @@ public class FileNodeService {
         fileNodeMapper.updateById(node);
 
         if ("FILE".equals(node.getEntryType()) && StringUtils.hasText(node.getFileId())) {
-            RobotFile file = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                    .eq(RobotFile::getFileId, node.getFileId())
-                    .isNull(RobotFile::getDeletedAt)
+            WorkspaceFile file = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                    .eq(WorkspaceFile::getFileId, node.getFileId())
+                    .isNull(WorkspaceFile::getDeletedAt)
                     .last("limit 1"));
             if (file != null) {
                 file.setFileName(trimmedName);
                 file.setUpdatedAt(LocalDateTime.now());
-                robotFileMapper.updateById(file);
+                workspaceFileMapper.updateById(file);
             }
         }
     }
@@ -277,15 +277,15 @@ public class FileNodeService {
     }
 
     private void cleanupFileResources(String fileId) {
-        RobotFile file = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getFileId, fileId)
-                .isNull(RobotFile::getDeletedAt)
+        WorkspaceFile file = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getFileId, fileId)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1"));
         if (file == null) return;
 
         file.setDeletedAt(LocalDateTime.now());
         file.setUpdatedAt(LocalDateTime.now());
-        robotFileMapper.updateById(file);
+        workspaceFileMapper.updateById(file);
 
         try {
             nfsStorageService.deleteFile(file.getOssPath());

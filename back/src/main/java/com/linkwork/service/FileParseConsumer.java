@@ -1,8 +1,8 @@
 package com.linkwork.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.linkwork.mapper.RobotFileMapper;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.mapper.WorkspaceFileMapper;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.service.memory.DocumentParserService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -28,7 +28,7 @@ public class FileParseConsumer {
     private static final int POLL_INTERVAL_MS = 1000;
 
     private final StringRedisTemplate redisTemplate;
-    private final RobotFileMapper robotFileMapper;
+    private final WorkspaceFileMapper workspaceFileMapper;
     private final NfsStorageService nfsStorageService;
     private final FileService fileService;
 
@@ -83,9 +83,9 @@ public class FileParseConsumer {
     }
 
     private void processFile(String fileId) {
-        RobotFile file = robotFileMapper.selectOne(new LambdaQueryWrapper<RobotFile>()
-                .eq(RobotFile::getFileId, fileId)
-                .isNull(RobotFile::getDeletedAt)
+        WorkspaceFile file = workspaceFileMapper.selectOne(new LambdaQueryWrapper<WorkspaceFile>()
+                .eq(WorkspaceFile::getFileId, fileId)
+                .isNull(WorkspaceFile::getDeletedAt)
                 .last("limit 1"));
         if (file == null) {
             log.warn("文件解析任务找不到文件记录: fileId={}", fileId);
@@ -95,7 +95,7 @@ public class FileParseConsumer {
             log.warn("DocumentParserService 未启用，跳过解析: fileId={}", fileId);
             file.setParseStatus("FAILED");
             file.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(file);
+            workspaceFileMapper.updateById(file);
             return;
         }
 
@@ -109,14 +109,14 @@ public class FileParseConsumer {
             file.setParsedOssPath(parsedOssPath);
             file.setParseStatus("PARSED");
             file.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(file);
+            workspaceFileMapper.updateById(file);
 
             fileService.triggerMemoryIndex(file);
         } catch (Exception e) {
             log.error("文件解析失败: fileId={}", fileId, e);
             file.setParseStatus("FAILED");
             file.setUpdatedAt(LocalDateTime.now());
-            robotFileMapper.updateById(file);
+            workspaceFileMapper.updateById(file);
         } finally {
             if (tempPath != null) {
                 try {

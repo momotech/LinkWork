@@ -3,9 +3,9 @@ package com.linkwork.service.memory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkwork.config.MemoryConfig;
 import com.linkwork.model.dto.MemoryIndexJob;
-import com.linkwork.mapper.RobotFileMapper;
+import com.linkwork.mapper.WorkspaceFileMapper;
 import com.linkwork.model.dto.MemoryIndexJob.JobType;
-import com.linkwork.model.entity.RobotFile;
+import com.linkwork.model.entity.WorkspaceFile;
 import com.linkwork.service.NfsStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +34,7 @@ public class MemoryService {
     private NfsStorageService nfsStorageService;
 
     @Autowired(required = false)
-    private RobotFileMapper robotFileMapper;
+    private WorkspaceFileMapper workspaceFileMapper;
 
     public List<Map<String, Object>> search(String workstationId, String userId, String query, int topK) {
         String collection = memoryConfig.collectionName(workstationId, userId);
@@ -221,17 +221,17 @@ public class MemoryService {
         int upserted = milvusStore.upsert(collection, records);
         log.info("Indexed {} new chunks from source {} into {}", upserted, source, collection);
 
-        if (robotFileMapper != null && job.getObjectName() != null
+        if (workspaceFileMapper != null && job.getObjectName() != null
                 && ("NFS".equals(job.getStorageType()) || "OSS".equals(job.getStorageType()))) {
-            RobotFile file = robotFileMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<RobotFile>()
-                    .and(w -> w.eq(RobotFile::getOssPath, job.getObjectName())
-                            .or().eq(RobotFile::getParsedOssPath, job.getObjectName()))
-                    .isNull(RobotFile::getDeletedAt)
+            WorkspaceFile file = workspaceFileMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WorkspaceFile>()
+                    .and(w -> w.eq(WorkspaceFile::getOssPath, job.getObjectName())
+                            .or().eq(WorkspaceFile::getParsedOssPath, job.getObjectName()))
+                    .isNull(WorkspaceFile::getDeletedAt)
                     .last("limit 1"));
             if (file != null) {
                 file.setMemoryIndexStatus("INDEXED");
                 file.setUpdatedAt(java.time.LocalDateTime.now());
-                robotFileMapper.updateById(file);
+                workspaceFileMapper.updateById(file);
             }
         }
     }

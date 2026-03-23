@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("linkwork_file")
-public class RobotFile {
+public class WorkspaceFile {
 
     @TableId(type = IdType.AUTO)
     private Long id;

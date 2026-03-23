@@ -1,6 +1,6 @@
 """AI 员工启动脚本（生产版本）。
 
-职责：创建 momo-agent-sdk Worker 并启动任务消费循环。
+职责：创建 LinkWork Worker 并启动任务消费循环。
 不负责 zzd 生命周期管理（由 start.sh 负责）。
 
 环境变量：
@@ -18,7 +18,7 @@ import os
 import signal
 import sys
 
-from momo_agent_sdk.work import Worker
+from linkwork_executor.work.worker import Worker
 
 # ---------------------------------------------------------------------------
 # 日志配置
