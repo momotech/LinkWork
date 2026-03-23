@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: robot-web-service
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties],optional:file:../../.env[.properties]
 
   # 文件上传配置
   servlet:
@@ -13,7 +15,7 @@ spring:
 
   # MySQL 数据库配置
   datasource:
-    url: ${LINKWORK_DB_URL:jdbc:mysql://host.docker.internal:3307/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    url: ${LINKWORK_DB_URL:jdbc:mysql://localhost:3306/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
     username: ${LINKWORK_DB_USERNAME:robot}
     password: ${LINKWORK_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -52,8 +54,8 @@ logging:
 # 认证配置
 robot:
   litellm:
-    base-url: http://172.18.228.32:4000
-    api-key: sk-48sbQpOd2cCeXW1q3H4TBQ
+    base-url: ${ROBOT_LITELLM_BASE_URL:http://localhost:4000}
+    api-key: ${ROBOT_LITELLM_API_KEY:}
     default-chat-model: openrouter/anthropic/claude-sonnet-4.5
   auth:
     # 访问密码（BCrypt 哈希）
@@ -77,11 +79,11 @@ robot:
     lock-key: ${CRON_LOCK_KEY:lock:cron:scanner}
     lock-ttl-seconds: ${CRON_LOCK_TTL_SECONDS:55}
   gitlab:
-    base-url: ${GITLAB_BASE_URL:https://git.wemomo.com}
+    base-url: ${GITLAB_BASE_URL:https://gitlab.example.com}
     auth-base-url: ${GITLAB_AUTH_BASE_URL:${robot.gitlab.base-url}}
-    client-id: ${GITLAB_CLIENT_ID:afc81060f89b3e664bbaa2772baf399f232ba4a207b0a4f995d5f82788acdc08}
+    client-id: ${GITLAB_CLIENT_ID:}
     client-secret: ${GITLAB_CLIENT_SECRET:}
-    redirect-uri: ${GITLAB_REDIRECT_URI:http://172.18.228.32:3003/auth/callback/gitlab}
+    redirect-uri: ${GITLAB_REDIRECT_URI:http://localhost:3003/auth/callback/gitlab}
   zzd:
     # zzd 服务调用 /api/v1/tasks/{taskId}/git-token 时使用的服务身份令牌
     api-server-token: ${ZZD_API_SERVER_TOKEN:}
@@ -103,13 +105,13 @@ robot:
     auth-token: ${MODEL_REGISTRY_AUTH_TOKEN:${robot.litellm.api-key}}
     x-litellm-api-key: ${MODEL_REGISTRY_X_LITELLM_API_KEY:${robot.litellm.api-key}}
   billing:
-    gateway-url-template: ${BILLING_GATEWAY_URL_TEMPLATE:http://ai-agent-gateway.momo.com/v1/billing/tasks/{taskId}}
+    gateway-url-template: ${BILLING_GATEWAY_URL_TEMPLATE:http://localhost:8080/v1/billing/tasks/{taskId}}
     timeout-ms: ${BILLING_TIMEOUT_MS:3000}
     sync-retries: ${BILLING_SYNC_RETRIES:3}
     retry-interval-ms: ${BILLING_RETRY_INTERVAL_MS:200}
   task-share:
     secret: ${TASK_SHARE_SECRET:${robot.auth.jwt-secret}}
-    base-url: ${TASK_SHARE_BASE_URL:https://robot.wemomo.com}
+    base-url: ${TASK_SHARE_BASE_URL:http://localhost:3003}
     default-expire-hours: ${TASK_SHARE_DEFAULT_EXPIRE_HOURS:24}
     max-expire-hours: ${TASK_SHARE_MAX_EXPIRE_HOURS:168}
   skills:
@@ -140,11 +142,11 @@ schedule:
     prefix: ai-worker
 
   images:
-    registry: docker.momo.com
+    registry: ${SCHEDULE_IMAGE_REGISTRY:}
     # Agent 基础镜像（本地构建用，固定 digest 保证一致性）
-    agent: 10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777
+    agent: ${SCHEDULE_AGENT_IMAGE:}
     # Runner 默认镜像（K8s 运行时使用内部仓库镜像）
-    runner: ${RUNNER_IMAGE:10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777}
+    runner: ${RUNNER_IMAGE:}
   
   # Agent 启动脚本配置（main.py 从链接下载，启动 agent+executor）
   agent-bootstrap:
@@ -164,9 +166,9 @@ schedule:
     ssh-pub-mode: "644"
   
   network:
-    api-base-url: http://api-gateway.ai-worker.svc:8080
-    ws-base-url: ws://ws-gateway.ai-worker.svc:8080
-    llm-gateway-url: http://llm-gateway.ai-worker.svc:8080
+    api-base-url: ${API_BASE_URL:http://localhost:8080}
+    ws-base-url: ${WS_BASE_URL:ws://localhost:8080}
+    llm-gateway-url: ${LLM_GATEWAY_URL:http://localhost:4000}
     # 默认与 spring.data.redis 同源，避免后端入队和 worker 消费落到不同 Redis
     redis-url: ${REDIS_URL:redis://${LINKWORK_REDIS_HOST:momo-redis}:${LINKWORK_REDIS_PORT:6379}}
   
@@ -225,15 +227,15 @@ image-build:
   docker-host: ${DOCKER_HOST:unix:///var/run/docker.sock}
   
   # 默认 Agent 基础镜像（K8s 模式，固定 digest 保证一致性）
-  default-agent-base-image: ${DEFAULT_AGENT_BASE_IMAGE:10.30.107.146/robot/rockylinux9-agent@sha256:cb7593392021adc22da5e74721ed3d11414adffd722a51565a98a5442b3f2777}
+  default-agent-base-image: ${DEFAULT_AGENT_BASE_IMAGE:}
   
   # Compose 模式基础镜像（用户本地构建使用）
-  compose-base-image: ${COMPOSE_BASE_IMAGE:docker.momo.com/osbase/rockylinux9:9.4}
+  compose-base-image: ${COMPOSE_BASE_IMAGE:}
   
   # 镜像仓库配置
   # K8s 模式下构建的镜像会推送到此仓库
   # 注意：直接配置，不依赖环境变量（避免环境变量为空时覆盖默认值）
-  registry: 10.30.107.146/robot
+  registry: ${IMAGE_REGISTRY:}
   registry-username: ${IMAGE_REGISTRY_USERNAME:}
   registry-password: ${IMAGE_REGISTRY_PASSWORD:}
   
@@ -281,7 +283,7 @@ nfs:
 memory:
   enabled: ${MEMORY_ENABLED:true}
   milvus:
-    uri: ${MILVUS_URI:http://milvus:19530}
+    uri: ${MILVUS_URI:http://localhost:19530}
     token: ${MILVUS_TOKEN:}
   embedding:
     model: ${MEMORY_EMBEDDING_MODEL:text-embedding-3-small}
@@ -330,7 +332,7 @@ linkwork:
       retry-backoff-ms: ${LINKWORK_AGENT_SKILL_RETRY_BACKOFF_MS:200}
       cache-ttl-ms: ${LINKWORK_AGENT_SKILL_CACHE_TTL_MS:10000}
       gitlab:
-        url: ${LINKWORK_AGENT_SKILL_GITLAB_URL:${robot.gitlab.base-url:https://git.wemomo.com}}
+        url: ${LINKWORK_AGENT_SKILL_GITLAB_URL:${robot.gitlab.base-url:}}
         token: ${LINKWORK_AGENT_SKILL_GITLAB_TOKEN:}
         repo-url: ${LINKWORK_AGENT_SKILL_GITLAB_REPO_URL:${robot.skills.repo-url:}}
         deploy-token: ${LINKWORK_AGENT_SKILL_GITLAB_DEPLOY_TOKEN:${robot.skills.deploy-token:}}
@@ -341,8 +343,8 @@ linkwork:
       enabled: ${LINKWORK_AGENT_MCP_ENABLED:true}
       mode: ${LINKWORK_AGENT_MCP_MODE:gateway}
       gateway:
-        agent-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_AGENT_BASE_URL:http://linkwork-mcp-gateway.linkwork-mcp-gateway.svc.cluster.local:9080}
-        proxy-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_PROXY_BASE_URL:http://192.168.100.1:38090}
+        agent-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_AGENT_BASE_URL:http://localhost:9080}
+        proxy-base-url: ${LINKWORK_AGENT_MCP_GATEWAY_PROXY_BASE_URL:http://localhost:38090}
       client:
         connect-timeout-ms: ${LINKWORK_AGENT_MCP_CONNECT_TIMEOUT_MS:5000}
         read-timeout-ms: ${LINKWORK_AGENT_MCP_READ_TIMEOUT_MS:35000}

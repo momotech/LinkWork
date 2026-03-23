@@ -8,3 +8,12 @@
 # OS
 .DS_Store
 Thumbs.db
+/db/migration/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+/back/target
+/target
+

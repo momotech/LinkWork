@@ -30,6 +30,37 @@ log_info()  { echo "[INFO]  $(date '+%H:%M:%S') $*"; }
 log_error() { echo "[ERROR] $(date '+%H:%M:%S') $*" >&2; }
 log_warn()  { echo "[WARN]  $(date '+%H:%M:%S') $*"; }
 
+load_env_file() {
+    local env_file="${ENV_FILE:-/opt/agent/.env}"
+    if [[ ! -f "${env_file}" && -f "/workspace/.env" ]]; then
+        env_file="/workspace/.env"
+    fi
+    if [[ ! -f "${env_file}" ]]; then
+        log_warn "未找到 .env 文件（ENV_FILE=${ENV_FILE:-未设置}），跳过加载"
+        return 0
+    fi
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line%$'\r'}"
+        [[ -z "${line}" || "${line}" == \#* ]] && continue
+        [[ "${line}" != *=* ]] && continue
+
+        local key="${line%%=*}"
+        local value="${line#*=}"
+        key="${key//[[:space:]]/}"
+        [[ -z "${key}" ]] && continue
+
+        if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+            value="${value:1:${#value}-2}"
+        elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+        export "${key}=${value}"
+    done < "${env_file}"
+
+    log_info "已加载 .env 文件: ${env_file}"
+}
+
 configure_runtime_git_token() {
     if [[ -z "${ZZD_API_SERVER_URL:-}" && -n "${API_BASE_URL:-}" ]]; then
         export ZZD_API_SERVER_URL="${API_BASE_URL}"
@@ -137,6 +168,7 @@ if ! command -v zzd >/dev/null 2>&1; then
     exit 1
 fi
 
+load_env_file
 configure_runtime_git_token
 
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -215,6 +247,11 @@ sudo -u agent -g "${WORKSPACE_EFFECTIVE_GROUP}" \
     IDLE_TIMEOUT="${IDLE_TIMEOUT:-}" \
     WORKER_DESTROY_API_BASE="${WORKER_DESTROY_API_BASE:-}" \
     WORKER_DESTROY_API_PASSWORD="${WORKER_DESTROY_API_PASSWORD:-}" \
+    ROBOT_LITELLM_API_KEY="${ROBOT_LITELLM_API_KEY:-}" \
+    OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+    LITELLM_API_KEY="${LITELLM_API_KEY:-}" \
+    ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-}" \
+    ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
     POD_NAME="${POD_NAME:-}" \
     SERVICE_ID="${SERVICE_ID:-}" \
     PYTHON_BIN="${PYTHON_BIN_PATH}" \

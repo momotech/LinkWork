@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -15,6 +17,8 @@ from ..exceptions import (
     ConfigValidationError,
 )
 from .models import LinkWorkAgentSDKConfig
+
+_ENV_PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?\}")
 
 
 class ConfigLoader:
@@ -60,6 +64,8 @@ class ConfigLoader:
                 f"Config JSON parse failed at line {error.lineno}, col {error.colno}: {error.msg}",
             ) from error
 
+        raw_config = self._interpolate_env_placeholders(raw_config)
+
         try:
             self._config = LinkWorkAgentSDKConfig.model_validate(raw_config)
         except ValidationError as error:
@@ -70,3 +76,22 @@ class ConfigLoader:
             raise ConfigValidationError(f"Config validation failed: {details}") from error
 
         return self._config
+
+    def _interpolate_env_placeholders(self, value: object) -> object:
+        if isinstance(value, dict):
+            return {key: self._interpolate_env_placeholders(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._interpolate_env_placeholders(item) for item in value]
+        if isinstance(value, str):
+            return self._resolve_env_string(value)
+        return value
+
+    def _resolve_env_string(self, raw: str) -> str:
+        def _replace(match: re.Match[str]) -> str:
+            name = match.group(1)
+            default = match.group(2)
+            if default is None:
+                return os.getenv(name, match.group(0))
+            return os.getenv(name, default)
+
+        return _ENV_PLACEHOLDER_PATTERN.sub(_replace, raw)

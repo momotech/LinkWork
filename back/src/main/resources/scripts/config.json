@@ -7,9 +7,9 @@
     "language": "Chinese",
     "env": {
       "OPENAI_BASE_URL": "http://172.18.228.32:4000/v1",
-      "OPENAI_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "OPENAI_API_KEY": "${OPENAI_API_KEY:}",
       "LITELLM_BASE_URL": "http://172.18.228.32:4000",
-      "LITELLM_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ"
+      "LITELLM_API_KEY": "${LITELLM_API_KEY:}"
     }
   },
   "claude_settings": {
@@ -17,11 +17,11 @@
     "language": "Chinese",
     "env": {
       "ANTHROPIC_BASE_URL": "http://172.18.228.32:4000",
-      "ANTHROPIC_AUTH_TOKEN": "sk-48sbQpOd2cCeXW1q3H4TBQ",
-      "ANTHROPIC_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "ANTHROPIC_AUTH_TOKEN": "${ANTHROPIC_AUTH_TOKEN:}",
+      "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY:}",
       "ANTHROPIC_MODEL": "openrouter/anthropic/claude-sonnet-4.5",
       "LITELLM_BASE_URL": "http://172.18.228.32:4000",
-      "LITELLM_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "LITELLM_API_KEY": "${LITELLM_API_KEY:}",
       "API_TIMEOUT_MS": "600000",
       "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
     }
