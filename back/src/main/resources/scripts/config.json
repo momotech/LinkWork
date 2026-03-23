@@ -3,11 +3,11 @@
     "model": "sonnet",
     "language": "Chinese",
     "env": {
-      "ANTHROPIC_BASE_URL": "http://172.18.228.32:4000",
+      "ANTHROPIC_BASE_URL": "${ANTHROPIC_BASE_URL:http://localhost:4000}",
       "ANTHROPIC_AUTH_TOKEN": "${ANTHROPIC_AUTH_TOKEN:}",
       "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY:}",
       "ANTHROPIC_MODEL": "openrouter/anthropic/claude-sonnet-4.5",
-      "LITELLM_BASE_URL": "http://172.18.228.32:4000",
+      "LITELLM_BASE_URL": "${LITELLM_BASE_URL:http://localhost:4000}",
       "LITELLM_API_KEY": "${LITELLM_API_KEY:}",
       "API_TIMEOUT_MS": "600000",
       "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
