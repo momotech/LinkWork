@@ -174,7 +174,8 @@ install_pi_cli() {
 check_prerequisites() {
     log_info "检查基础镜像内置依赖（不执行在线安装）..."
 
-    local required_cmds=("curl" "jq" "python3.12" "node" "npm" "git" "claude" "pi" "uv" "uvx")
+    # pi CLI 在部分基础镜像中未内置，当前构建流程不依赖其作为硬门槛。
+    local required_cmds=("curl" "jq" "python3.12" "node" "npm" "git" "claude" "uv" "uvx")
     local missing=()
 
     for cmd in "${required_cmds[@]}"; do
@@ -185,7 +186,7 @@ check_prerequisites() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         log_error "缺少必需命令: ${missing[*]}"
-        log_error "请确保基础镜像已预装: Python 3.12 / Node.js v24.13.0 / npm 11.6.2 / git 2.43.5 / Claude CLI / Pi CLI / uv / uvx"
+        log_error "请确保基础镜像已预装: Python 3.12 / Node.js v24.13.0 / npm 11.6.2 / git 2.43.5 / Claude CLI / uv / uvx"
         return 1
     fi
 
@@ -200,7 +201,11 @@ check_prerequisites() {
     log_info "  npm $(npm --version 2>&1)"
     log_info "  $(git --version 2>&1)"
     log_info "  $(claude --version 2>&1 | head -1)"
-    log_info "  $(pi --version 2>&1 | head -1)"
+    if command_exists pi; then
+        log_info "  $(pi --version 2>&1 | head -1)"
+    else
+        log_warn "pi 命令未安装，按可选依赖处理"
+    fi
     log_info "  $(uv --version 2>&1)"
     log_info "  $(uvx --version 2>&1 | head -1)"
 
