@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: robot-web-service
+    name: ${SPRING_APPLICATION_NAME:linkwork-backend-service}
   config:
     import: optional:file:.env[.properties],optional:file:../.env[.properties],optional:file:../../.env[.properties]
 
@@ -16,7 +16,7 @@ spring:
   # MySQL 数据库配置
   datasource:
     url: ${LINKWORK_DB_URL:jdbc:mysql://localhost:3306/linkwork?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
-    username: ${LINKWORK_DB_USERNAME:robot}
+    username: ${LINKWORK_DB_USERNAME:linkwork}
     password: ${LINKWORK_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
@@ -25,10 +25,10 @@ spring:
       idle-timeout: 30000
       connection-timeout: 30000
 
-  # Redis 配置（通过 Docker 网络直连 momo-redis 容器）
+  # Redis 配置（优先读取环境变量，默认使用 redis 服务名）
   data:
     redis:
-      host: ${LINKWORK_REDIS_HOST:momo-redis}
+      host: ${LINKWORK_REDIS_HOST:${REDIS_HOST:redis}}
       port: ${LINKWORK_REDIS_PORT:6379}
       password: ${LINKWORK_REDIS_PASSWORD:}
 
@@ -47,21 +47,21 @@ mybatis-plus:
 
 logging:
   level:
-    com.momo.robot: DEBUG
+    com.linkwork: DEBUG
     org.springframework.web: INFO
     com.baomidou.mybatisplus: DEBUG
 
 # 认证配置
 robot:
   litellm:
-    base-url: ${ROBOT_LITELLM_BASE_URL:http://localhost:4000}
-    api-key: ${ROBOT_LITELLM_API_KEY:}
+    base-url: ${LITELLM_BASE_URL:${ROBOT_LITELLM_BASE_URL:http://localhost:4000}}
+    api-key: ${LITELLM_API_KEY:${ROBOT_LITELLM_API_KEY:}}
     default-chat-model: openrouter/anthropic/claude-sonnet-4.5
   auth:
     # 访问密码（BCrypt 哈希）
-    password: ${ROBOT_AUTH_PASSWORD:}
+    password: ${AUTH_PASSWORD:${ROBOT_AUTH_PASSWORD:}}
     # JWT 密钥（至少 32 字符）
-    jwt-secret: ${ROBOT_AUTH_JWT_SECRET:}
+    jwt-secret: ${AUTH_JWT_SECRET:${ROBOT_AUTH_JWT_SECRET:}}
     # JWT 过期时间（毫秒），默认 24 小时
     jwt-expiration: 86400000
   # 任务调度配置（与 worker 联调对齐）
@@ -170,7 +170,7 @@ schedule:
     ws-base-url: ${WS_BASE_URL:ws://localhost:8080}
     llm-gateway-url: ${LLM_GATEWAY_URL:http://localhost:4000}
     # 默认与 spring.data.redis 同源，避免后端入队和 worker 消费落到不同 Redis
-    redis-url: ${REDIS_URL:redis://${LINKWORK_REDIS_HOST:momo-redis}:${LINKWORK_REDIS_PORT:6379}}
+    redis-url: ${REDIS_URL:redis://${LINKWORK_REDIS_HOST:${REDIS_HOST:redis}}:${LINKWORK_REDIS_PORT:6379}}
   
   ssh:
     port: 22
@@ -190,13 +190,13 @@ schedule:
   
   # OSS 挂载配置（需配合节点级 ossfs 三路挂载）
   # 节点级 ossfs 挂载:
-  #   oss://robot-agent-files/system/      → {host-path}/system
-  #   oss://robot-agent-files/user-files/  → {host-path}/user-files
-  #   oss://robot-agent-files/workstation/ → {host-path}/workstation
+  #   oss://agent-files/system/      → {host-path}/system
+  #   oss://agent-files/user-files/  → {host-path}/user-files
+  #   oss://agent-files/workstation/ → {host-path}/workstation
   oss-mount:
     enabled: ${OSS_MOUNT_ENABLED:true}
-    host-path: /mnt/oss/robot-agent-files        # 三个 ossfs 挂载点的公共父目录
-    mount-path: /data/oss/robot                  # 容器内产出物挂载根 (system/{wsId})
+    host-path: ${OSS_MOUNT_HOST_PATH:/mnt/oss/agent-files} # 三个 ossfs 挂载点的公共父目录
+    mount-path: ${OSS_MOUNT_PATH:/data/oss/agent}          # 容器内产出物挂载根 (system/{wsId})
     read-only: false                             # 产出物挂载是否只读
     user-files-mount-path: /mnt/user-files       # 容器内个人空间挂载根
     workstation-mount-path: /mnt/workstation     # 容器内岗位空间挂载根
@@ -240,7 +240,7 @@ image-build:
   registry-password: ${IMAGE_REGISTRY_PASSWORD:}
   
   # K8s 拉取私有镜像的 Secret 名称
-  image-pull-secret: ${IMAGE_PULL_SECRET:robot-registry-secret}
+  image-pull-secret: ${IMAGE_PULL_SECRET:linkwork-registry-secret}
   
   # 构建脚本路径（用户补充内容）
   build-script-path: ${BUILD_SCRIPT_PATH:/opt/scripts/build.sh}
@@ -275,7 +275,7 @@ image-build:
 # 后续更换 NFS 服务器地址只需重新 mount + 修改 NFS_STORAGE_BASE_PATH 环境变量，无需改代码
 nfs:
   storage:
-    base-path: ${NFS_STORAGE_BASE_PATH:/mnt/oss/robot-agent-files}
+    base-path: ${NFS_STORAGE_BASE_PATH:/mnt/oss/agent-files}
     download-base-url: /api/v1/files
     task-output-base-url: /api/v1/task-outputs
 
@@ -320,7 +320,7 @@ linkwork:
       enabled: ${LINKWORK_AGENT_STORAGE_ENABLED:true}
       provider: ${LINKWORK_AGENT_STORAGE_PROVIDER:nfs}
       nfs:
-        base-path: ${LINKWORK_AGENT_STORAGE_NFS_BASE_PATH:${nfs.storage.base-path:/mnt/oss/robot-agent-files}}
+        base-path: ${LINKWORK_AGENT_STORAGE_NFS_BASE_PATH:${nfs.storage.base-path:/mnt/oss/agent-files}}
         mount-path: ${LINKWORK_AGENT_STORAGE_NFS_MOUNT_PATH:/workspace}
         read-only: ${LINKWORK_AGENT_STORAGE_NFS_READ_ONLY:false}
         uid: ${LINKWORK_AGENT_STORAGE_NFS_UID:1000}

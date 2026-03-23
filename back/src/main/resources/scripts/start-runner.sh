@@ -24,7 +24,9 @@ readonly PUBKEY_FILE="${SHARED_KEY_DIR}/zzd_pubkey.pub"
 readonly PUBKEY_TIMEOUT="${PUBKEY_TIMEOUT:-120}"
 readonly WORKSPACE_GROUP="${WORKSPACE_GROUP:-workspace}"
 readonly WORKSPACE_GID="${WORKSPACE_GID:-2000}"
-readonly MOMOBOT_UID="${MOMOBOT_UID:-1001}"
+readonly RUNNER_USER="${RUNNER_USER:-runner}"
+readonly RUNNER_UID="${RUNNER_UID:-1001}"
+readonly RUNNER_HOME="${RUNNER_HOME:-/home/${RUNNER_USER}}"
 
 # =============================================================================
 # 日志
@@ -33,8 +35,8 @@ log_info()  { echo "[Runner][INFO]  $(date '+%H:%M:%S') $*"; }
 log_error() { echo "[Runner][ERROR] $(date '+%H:%M:%S') $*" >&2; }
 log_warn()  { echo "[Runner][WARN]  $(date '+%H:%M:%S') $*"; }
 
-configure_momobot_python_env() {
-    local bashrc="/home/momobot/.bashrc"
+configure_runner_python_env() {
+    local bashrc="${RUNNER_HOME}/.bashrc"
     local python_bin=""
 
     if [[ -x /usr/bin/python3.12 ]]; then
@@ -48,7 +50,7 @@ configure_momobot_python_env() {
     fi
 
     if [[ -z "${python_bin}" ]]; then
-        log_warn "未找到 python3.12/python3，跳过 momobot Python 环境变量注入"
+        log_warn "未找到 python3.12/python3，跳过 ${RUNNER_USER} Python 环境变量注入"
         return 0
     fi
 
@@ -61,8 +63,8 @@ export UV_PYTHON="${python_bin}"
 export PATH="/usr/bin:/usr/local/bin:\$PATH"
 # <<< workspace-python <<<
 EOF
-    chown momobot:momobot "${bashrc}"
-    log_info "momobot python 默认解释器: ${python_bin} ($("${python_bin}" --version 2>&1))"
+    chown "${RUNNER_USER}:${RUNNER_USER}" "${bashrc}"
+    log_info "${RUNNER_USER} python 默认解释器: ${python_bin} ($("${python_bin}" --version 2>&1))"
 }
 
 setup_workspace_group_permissions() {
@@ -77,8 +79,8 @@ setup_workspace_group_permissions() {
         }
     fi
 
-    usermod -aG "${resolved_group}" momobot || {
-        log_error "将 momobot 加入 workspace 协作组失败 (${resolved_group})"
+    usermod -aG "${resolved_group}" "${RUNNER_USER}" || {
+        log_error "将 ${RUNNER_USER} 加入 workspace 协作组失败 (${resolved_group})"
         return 1
     }
 
@@ -128,32 +130,32 @@ grep -q '^AuthorizedKeysFile' /etc/ssh/sshd_config \
     || echo 'AuthorizedKeysFile .ssh/authorized_keys' >> /etc/ssh/sshd_config
 
 # =============================================================================
-# 2. 确保有执行用户（通常 momobot，必要时 root 也可）
+# 2. 确保有执行用户（默认 runner，可通过 RUNNER_USER 覆盖，必要时 root 也可）
 # =============================================================================
-if id momobot &>/dev/null; then
-    CURRENT_UID="$(id -u momobot)"
-    if [ "$CURRENT_UID" != "$MOMOBOT_UID" ]; then
-        log_info "校准用户 momobot UID: ${CURRENT_UID} -> ${MOMOBOT_UID}"
-        usermod -u "${MOMOBOT_UID}" momobot
-        chown -R momobot:momobot /home/momobot
+if id "${RUNNER_USER}" &>/dev/null; then
+    CURRENT_UID="$(id -u "${RUNNER_USER}")"
+    if [ "$CURRENT_UID" != "$RUNNER_UID" ]; then
+        log_info "校准用户 ${RUNNER_USER} UID: ${CURRENT_UID} -> ${RUNNER_UID}"
+        usermod -u "${RUNNER_UID}" "${RUNNER_USER}"
+        chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_HOME}"
     else
-        log_info "用户 momobot 已存在 (uid=${CURRENT_UID})"
+        log_info "用户 ${RUNNER_USER} 已存在 (uid=${CURRENT_UID})"
     fi
 else
-    log_info "创建用户 momobot (uid=${MOMOBOT_UID})..."
-    groupadd -g "${MOMOBOT_UID}" momobot 2>/dev/null || true
-    useradd -u "${MOMOBOT_UID}" -g momobot -m -s /bin/bash momobot 2>/dev/null || true
-    echo 'momobot ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/momobot
-    chmod 0440 /etc/sudoers.d/momobot
-    log_info "用户 momobot 已创建"
+    log_info "创建用户 ${RUNNER_USER} (uid=${RUNNER_UID})..."
+    groupadd -g "${RUNNER_UID}" "${RUNNER_USER}" 2>/dev/null || true
+    useradd -u "${RUNNER_UID}" -g "${RUNNER_USER}" -m -s /bin/bash "${RUNNER_USER}" 2>/dev/null || true
+    echo "${RUNNER_USER} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${RUNNER_USER}"
+    chmod 0440 "/etc/sudoers.d/${RUNNER_USER}"
+    log_info "用户 ${RUNNER_USER} 已创建"
 fi
-log_info "momobot 最终 uid=$(id -u momobot)"
+log_info "${RUNNER_USER} 最终 uid=$(id -u "${RUNNER_USER}")"
 
-if ! grep -q '^umask 0002$' /home/momobot/.bashrc 2>/dev/null; then
-    echo 'umask 0002' >> /home/momobot/.bashrc
-    chown momobot:momobot /home/momobot/.bashrc
+if ! grep -q '^umask 0002$' "${RUNNER_HOME}/.bashrc" 2>/dev/null; then
+    echo 'umask 0002' >> "${RUNNER_HOME}/.bashrc"
+    chown "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_HOME}/.bashrc"
 fi
-configure_momobot_python_env
+configure_runner_python_env
 
 # =============================================================================
 # 3. 等待 Agent 写入共享卷公钥: /shared-keys/zzd_pubkey.pub
@@ -177,17 +179,17 @@ fi
 log_info "检测到公钥: ${PUBKEY_FILE}"
 
 # =============================================================================
-# 4. 把公钥写到 authorized_keys（momobot + root）
+# 4. 把公钥写到 authorized_keys（runner 用户 + root）
 # =============================================================================
 log_info "配置 SSH authorized_keys..."
 
-# momobot 用户
-mkdir -p /home/momobot/.ssh
-cp "$PUBKEY_FILE" /home/momobot/.ssh/authorized_keys
-chown -R momobot:momobot /home/momobot/.ssh
-chmod 700 /home/momobot/.ssh
-chmod 600 /home/momobot/.ssh/authorized_keys
-log_info "  -> momobot authorized_keys 已配置"
+# runner 用户
+mkdir -p "${RUNNER_HOME}/.ssh"
+cp "$PUBKEY_FILE" "${RUNNER_HOME}/.ssh/authorized_keys"
+chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_HOME}/.ssh"
+chmod 700 "${RUNNER_HOME}/.ssh"
+chmod 600 "${RUNNER_HOME}/.ssh/authorized_keys"
+log_info "  -> ${RUNNER_USER} authorized_keys 已配置"
 
 # root 用户（可选，调试用）
 mkdir -p /root/.ssh

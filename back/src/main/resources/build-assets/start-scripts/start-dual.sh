@@ -29,7 +29,8 @@ readonly WORKSPACE_GROUP="${WORKSPACE_GROUP:-workspace}"
 readonly WORKSPACE_GID="${WORKSPACE_GID:-2000}"
 WORKSPACE_EFFECTIVE_GROUP="${WORKSPACE_GROUP}"
 readonly ZZD_FORCE_GIT_LOCAL_ROUTE="${ZZD_FORCE_GIT_LOCAL_ROUTE:-true}"
-readonly RUNTIME_GIT_API_FALLBACK_URL="${RUNTIME_GIT_API_FALLBACK_URL:-http://tjwq-robot-web-002.tjwq.prod.momo.momo.com:18081}"
+readonly RUNTIME_GIT_API_FALLBACK_URL="${RUNTIME_GIT_API_FALLBACK_URL:-http://127.0.0.1:8081}"
+readonly ZZD_USER_KEY_FILE="${ZZD_USER_KEY_FILE:-runner_key.enc}"
 
 # =============================================================================
 # 日志
@@ -241,11 +242,11 @@ rm -f /tmp/zzd_id_ed25519 /tmp/zzd_id_ed25519.pub
 ssh-keygen -t ed25519 -f /tmp/zzd_id_ed25519 -N "" -q
 
 # 加密密钥（内联注入 MASTER_KEY，不污染全局环境）
-log_info "encrypt-key → momobot_key.enc..."
-ZZD_MASTER_KEY="$MASTER_KEY" encrypt-key -input /tmp/zzd_id_ed25519 -output "$KEY_DIR/momobot_key.enc"
+log_info "encrypt-key → ${ZZD_USER_KEY_FILE} ..."
+ZZD_MASTER_KEY="$MASTER_KEY" encrypt-key -input /tmp/zzd_id_ed25519 -output "$KEY_DIR/${ZZD_USER_KEY_FILE}"
 
-log_info "复制 momobot_key.enc → root_key.enc (相同密钥)"
-cp "$KEY_DIR/momobot_key.enc" "$KEY_DIR/root_key.enc"
+log_info "复制 ${ZZD_USER_KEY_FILE} → root_key.enc (相同密钥)"
+cp "$KEY_DIR/${ZZD_USER_KEY_FILE}" "$KEY_DIR/root_key.enc"
 
 # 导出公钥到共享卷供 Runner 读取
 mkdir -p "$SHARED_KEY_DIR"
@@ -337,7 +338,7 @@ sudo -u agent -g "${WORKSPACE_EFFECTIVE_GROUP}" \
     IDLE_TIMEOUT="${IDLE_TIMEOUT:-}" \
     WORKER_DESTROY_API_BASE="${WORKER_DESTROY_API_BASE:-}" \
     WORKER_DESTROY_API_PASSWORD="${WORKER_DESTROY_API_PASSWORD:-}" \
-    ROBOT_LITELLM_API_KEY="${ROBOT_LITELLM_API_KEY:-}" \
+    ROBOT_LITELLM_API_KEY="${ROBOT_LITELLM_API_KEY:-${LITELLM_API_KEY:-}}" \
     API_BASE_URL="${API_BASE_URL:-}" \
     WS_BASE_URL="${WS_BASE_URL:-}" \
     LLM_GATEWAY_URL="${LLM_GATEWAY_URL:-}" \
@@ -345,7 +346,7 @@ sudo -u agent -g "${WORKSPACE_EFFECTIVE_GROUP}" \
     LITELLM_BASE_URL="${LITELLM_BASE_URL:-}" \
     ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-}" \
     OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
-    LITELLM_API_KEY="${LITELLM_API_KEY:-}" \
+    LITELLM_API_KEY="${LITELLM_API_KEY:-${ROBOT_LITELLM_API_KEY:-}}" \
     ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-}" \
     ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
     POD_NAME="${POD_NAME:-}" \
