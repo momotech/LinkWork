@@ -9,7 +9,7 @@
 #   4. 部署 MCP 配置到 /opt/agent/mcp.json
 #
 #   构建时步骤:
-#    1. 校验基础镜像内置依赖 (Python 3.12, Node.js, npm, git, Claude CLI, Pi CLI, uv, uvx)
+#    1. 校验基础镜像内置依赖 (Python 3.12, Node.js, npm, git, Claude CLI, uv, uvx)
 #    2. 创建基础目录
 #    3. 安装 zzd 二进制 (zzd, zz, gen-key, encrypt-key)
 #    4. 安装 linkwork-agent-sdk (源码)
@@ -157,16 +157,6 @@ install_claude_cli() {
         return 0
     fi
     log_error "claude 命令缺失。当前模式禁用在线安装，请在基础镜像中预装 Claude CLI。"
-    return 1
-}
-
-# 检查 Pi CLI（禁用在线安装）
-install_pi_cli() {
-    if command_exists pi; then
-        log_success "Pi CLI 已安装"
-        return 0
-    fi
-    log_error "pi 命令缺失。当前模式禁用在线安装，请在基础镜像中预装 Pi CLI。"
     return 1
 }
 
@@ -489,12 +479,9 @@ setup_agent_user() {
     local agent_home="/home/agent"
     mkdir -p "${agent_home}/.claude"
     echo '{"hasCompletedOnboarding": true}' > "${agent_home}/.claude.json"
-    mkdir -p "${agent_home}/.pi/agent"
     chown agent:agent "${agent_home}/.claude.json"
     chown -R agent:agent "${agent_home}/.claude"
-    chown -R agent:agent "${agent_home}/.pi"
     log_info "  -> 写入 .claude.json (hasCompletedOnboarding: true)"
-    log_info "  -> 初始化 .pi/agent 目录"
 
     return 0
 }
