@@ -51,6 +51,28 @@ public class PodSpecGenerator {
     /** zzd 调用 /api/v1/tasks/{taskId}/git-token 的服务身份 token（可选） */
     @Value("${robot.zzd.api-server-token:}")
     private String zzdApiServerToken;
+
+    /** Claude/LiteLLM 运行时网关配置 */
+    @Value("${ANTHROPIC_BASE_URL:${robot.litellm.base-url:http://localhost:4000}}")
+    private String anthropicBaseUrl;
+
+    @Value("${ANTHROPIC_AUTH_TOKEN:${robot.litellm.api-key:}}")
+    private String anthropicAuthToken;
+
+    @Value("${ANTHROPIC_API_KEY:${robot.litellm.api-key:}}")
+    private String anthropicApiKey;
+
+    @Value("${LITELLM_BASE_URL:${robot.litellm.base-url:http://localhost:4000}}")
+    private String litellmBaseUrl;
+
+    @Value("${LITELLM_API_KEY:${robot.litellm.api-key:}}")
+    private String litellmApiKey;
+
+    @Value("${OPENAI_API_KEY:${robot.litellm.api-key:}}")
+    private String openaiApiKey;
+
+    @Value("${ANTHROPIC_MODEL:${robot.litellm.default-chat-model:openrouter/anthropic/claude-sonnet-4.5}}")
+    private String anthropicModel;
     
     /**
      * 生成 Pod Spec（根据模式选择）
@@ -242,6 +264,7 @@ public class PodSpecGenerator {
         if (config.getRoleId() != null) {
             envVars.add(new EnvVar("ROLE_ID", String.valueOf(config.getRoleId()), null));
         }
+        appendClaudeRuntimeEnv(envVars);
         
         String agentConfigMap = agentConfigMapName(config.getServiceId());
         
@@ -423,6 +446,7 @@ public class PodSpecGenerator {
         if (config.getRoleId() != null) {
             envVars.add(new EnvVar("ROLE_ID", String.valueOf(config.getRoleId()), null));
         }
+        appendClaudeRuntimeEnv(envVars);
         
         String agentConfigMap = agentConfigMapName(config.getServiceId());
         
@@ -481,6 +505,34 @@ public class PodSpecGenerator {
         }
         if (StringUtils.hasText(zzdApiServerToken)) {
             envVars.add(new EnvVar("ZZD_API_SERVER_TOKEN", zzdApiServerToken, null));
+        }
+    }
+
+    /**
+     * 注入 Claude/LiteLLM 运行时所需环境变量。
+     * 避免 agent 子进程缺失 base url / key 后回退到 localhost:4000。
+     */
+    private void appendClaudeRuntimeEnv(List<EnvVar> envVars) {
+        if (StringUtils.hasText(anthropicBaseUrl)) {
+            envVars.add(new EnvVar("ANTHROPIC_BASE_URL", anthropicBaseUrl, null));
+        }
+        if (StringUtils.hasText(anthropicAuthToken)) {
+            envVars.add(new EnvVar("ANTHROPIC_AUTH_TOKEN", anthropicAuthToken, null));
+        }
+        if (StringUtils.hasText(anthropicApiKey)) {
+            envVars.add(new EnvVar("ANTHROPIC_API_KEY", anthropicApiKey, null));
+        }
+        if (StringUtils.hasText(litellmBaseUrl)) {
+            envVars.add(new EnvVar("LITELLM_BASE_URL", litellmBaseUrl, null));
+        }
+        if (StringUtils.hasText(litellmApiKey)) {
+            envVars.add(new EnvVar("LITELLM_API_KEY", litellmApiKey, null));
+        }
+        if (StringUtils.hasText(openaiApiKey)) {
+            envVars.add(new EnvVar("OPENAI_API_KEY", openaiApiKey, null));
+        }
+        if (StringUtils.hasText(anthropicModel)) {
+            envVars.add(new EnvVar("ANTHROPIC_MODEL", anthropicModel, null));
         }
     }
     
