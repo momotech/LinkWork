@@ -1,4 +1,17 @@
 {
+  "runtime": {
+    "provider": "pi"
+  },
+  "pi_settings": {
+    "model": "openai/gpt-5.2-codex",
+    "language": "Chinese",
+    "env": {
+      "OPENAI_BASE_URL": "http://172.18.228.32:4000/v1",
+      "OPENAI_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ",
+      "LITELLM_BASE_URL": "http://172.18.228.32:4000",
+      "LITELLM_API_KEY": "sk-48sbQpOd2cCeXW1q3H4TBQ"
+    }
+  },
   "claude_settings": {
     "model": "sonnet",
     "language": "Chinese",
