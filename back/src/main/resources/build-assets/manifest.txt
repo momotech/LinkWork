@@ -17,6 +17,15 @@ sdk-source/src/linkwork_agent_sdk/security/__init__.py
 sdk-source/src/linkwork_agent_sdk/security/enforcer.py
 sdk-source/src/linkwork_agent_sdk/skills/__init__.py
 sdk-source/src/linkwork_agent_sdk/skills/provider.py
+sdk-source/src/linkwork_executor/__init__.py
+sdk-source/src/linkwork_executor/work/__init__.py
+sdk-source/src/linkwork_executor/work/agents_guide.py
+sdk-source/src/linkwork_executor/work/consumer.py
+sdk-source/src/linkwork_executor/work/lifecycle.py
+sdk-source/src/linkwork_executor/work/worker.py
+sdk-source/src/linkwork_executor/work/workspace.py
+sdk-source/src/momo_agent_sdk/__init__.py
+sdk-source/src/momo_agent_sdk/work.py
 start-scripts/ai_employee.py
 start-scripts/start-dual.sh
 start-scripts/start-single.sh
