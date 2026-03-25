@@ -13,6 +13,8 @@
 [![GitHub stars](https://img.shields.io/github/stars/momotech/LinkWork)](https://github.com/momotech/LinkWork/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/momotech/LinkWork)](https://github.com/momotech/LinkWork/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+[![NOTICE](https://img.shields.io/badge/NOTICE-需保留-orange.svg)](./NOTICE)
+[![Trademark](https://img.shields.io/badge/Trademark-商标策略重要.svg)](./TRADEMARK_POLICY.md)
 
 </div>
 
@@ -27,6 +29,11 @@ LinkWork 是一个开源的企业级 **AI Agent 平台**，在 **Kubernetes** �
 不是一个聊天机器人，不是一个个人助手，而是一个**企业级的 AI 团队管理系统**。
 
 > 给 AI 发工资之前，先给它一个岗位、一套技能、一条安全红线。
+
+## 署名与商标
+
+- 本项目提供 Apache-2.0 `NOTICE` 文件；分发衍生版本时请保留署名链路。
+- 项目名称与 Logo 的使用请遵循 [TRADEMARK_POLICY.md](./TRADEMARK_POLICY.md)。
 
 ## 核心设计理念
 

@@ -220,3 +220,4 @@ docker compose up -d
 
 - [Quick Start](../quick-start.md) — Minimal startup experience
 - [Extension Guide](./extension.md) — Learn about role and capability extension
+- [Watermark Config Guide](./watermark-config.md) — Configure runtime identity watermark and provenance metadata

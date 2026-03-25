@@ -220,3 +220,4 @@ docker compose up -d
 
 - [快速开始](../quick-start_zh-CN.md) — 最小化启动体验
 - [扩展开发指南](./extension_zh-CN.md) — 了解岗位和能力扩展
+- [水印配置指南](./watermark-config_zh-CN.md) — 配置运行时身份水印与产物溯源元数据

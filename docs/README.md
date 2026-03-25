@@ -41,6 +41,7 @@ Deploy and extend LinkWork from scratch.
 |----------|-------------|
 | [Deployment Guide](./guides/deployment.md) | K8s production deployment, Harbor image registry, infrastructure requirements |
 | [Extension Guide](./guides/extension.md) | Full capability stack, custom roles, Skills, MCP, file management, Git projects |
+| [Watermark Config Guide](./guides/watermark-config.md) | Runtime identity watermark, provenance metadata, and verification checklist |
 
 ---
 

@@ -41,6 +41,7 @@
 |------|------|
 | [部署指南](./guides/deployment_zh-CN.md) | K8s 生产部署、Harbor 镜像仓库、基础设施要求 |
 | [扩展开发](./guides/extension_zh-CN.md) | 完整能力体系、自定义岗位、Skills、MCP、文件管理、Git 项目 |
+| [水印配置指南](./guides/watermark-config_zh-CN.md) | 运行时身份水印、产物溯源元数据与校验方法 |
 
 ---
 
